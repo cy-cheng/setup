@@ -88,6 +88,7 @@ private:
         auto candidates = panel.candidateList();
         if (panel.empty() || (!candidates && panel.preedit().empty() && panel.auxUp().empty())) {
             expanded_ = false;
+            page_ = 1;
             sendMessage("{\"type\":\"candidates\",\"visible\":false}");
             return;
         }
@@ -97,14 +98,25 @@ private:
         json += ",\"x\":" + std::to_string(rect.left());
         json += ",\"y\":" + std::to_string(rect.bottom());
         json += ",\"scale\":" + std::to_string(ic->scaleFactor());
-        json += ",\"preedit\":\"" + escape(panel.preedit().toString()) + "\"";
+        const auto preedit = panel.clientPreedit().empty()
+                                 ? panel.preedit().toString()
+                                 : panel.clientPreedit().toString();
+        json += ",\"preedit\":\"" + escape(preedit) + "\"";
         json += ",\"aux\":\"" + escape(panel.auxUp().toString() + panel.auxDown().toString()) + "\"";
         json += ",\"cursor\":" + std::to_string(candidates ? candidates->cursorIndex() : -1);
+        auto *pageable = candidates ? candidates->toPageable() : nullptr;
+        int currentPage = pageable ? pageable->currentPage() : -1;
+        if (currentPage >= 0) page_ = currentPage + 1;
+        json += ",\"page\":" + std::to_string(page_);
+        json += ",\"has_prev\":" + std::string(pageable && pageable->hasPrev() ? "true" : "false");
+        json += ",\"has_next\":" + std::string(pageable && pageable->hasNext() ? "true" : "false");
         json += ",\"items\":[";
         if (candidates) {
-            for (int i = 0; i < candidates->size(); ++i) {
+            const int limit = expanded_ ? 25 : 7;
+            for (int i = 0; i < std::min(candidates->size(), limit); ++i) {
                 if (i) json += ',';
-                json += "{\"label\":\"" + escape(candidates->label(i).toString()) + "\",\"text\":\"" + escape(candidates->candidate(i).textWithComment("  ").toString()) + "\"}";
+                const std::string index(1, static_cast<char>('a' + i));
+                json += "{\"label\":\"" + index + "\",\"text\":\"" + escape(candidates->candidate(i).textWithComment("  ").toString()) + "\"}";
             }
         }
         json += "]}";
@@ -128,31 +140,88 @@ private:
         if (event.isRelease()) return;
         auto *ic = event.inputContext();
         if (!ic) return;
-        auto list = ic->inputPanel().candidateList();
-        if (!list || list->empty()) return;
         const auto key = event.key();
+        auto &panel = ic->inputPanel();
+        if (key.check(FcitxKey_Return, fcitx::KeyState::Ctrl) ||
+            key.check(FcitxKey_KP_Enter, fcitx::KeyState::Ctrl)) {
+            const auto raw = panel.clientPreedit().empty()
+                                 ? panel.preedit().toString()
+                                 : panel.clientPreedit().toString();
+            if (!raw.empty()) {
+                ic->commitString(raw);
+                ic->reset();
+                expanded_ = false;
+                page_ = 1;
+                event.filterAndAccept();
+                sendMessage("{\"type\":\"candidates\",\"visible\":false}");
+            }
+            return;
+        }
+        auto list = panel.candidateList();
+        if (!list || list->empty()) return;
         if (!expanded_ && key.check(FcitxKey_Down)) {
             expanded_ = true;
+            page_ = 1;
             if (list->cursorIndex() < 0) setCursor(list, 0);
+            event.filterAndAccept();
+        } else if (!expanded_ && key.check(FcitxKey_Left)) {
+            setCursor(list, std::max(0, list->cursorIndex() - 1));
+            event.filterAndAccept();
+        } else if (!expanded_ && key.check(FcitxKey_Right)) {
+            setCursor(list, std::min(std::min(6, list->size() - 1), list->cursorIndex() + 1));
             event.filterAndAccept();
         } else if (expanded_ && key.check(FcitxKey_Escape)) {
             expanded_ = false;
+            setCursor(list, std::min(6, std::max(0, list->cursorIndex())));
             event.filterAndAccept();
         } else if (expanded_ && key.check(FcitxKey_Left)) {
             setCursor(list, list->cursorIndex() - 1); event.filterAndAccept();
         } else if (expanded_ && key.check(FcitxKey_Right)) {
             setCursor(list, list->cursorIndex() + 1); event.filterAndAccept();
         } else if (expanded_ && key.check(FcitxKey_Up)) {
-            setCursor(list, list->cursorIndex() - 4); event.filterAndAccept();
+            const int cursor = std::max(0, list->cursorIndex());
+            if (cursor >= 5) {
+                setCursor(list, cursor - 5);
+            } else if (auto *pageable = list->toPageable(); pageable && pageable->hasPrev()) {
+                const int column = cursor % 5;
+                pageable->prev();
+                page_ = std::max(1, page_ - 1);
+                setCursor(list, std::max(0, list->size() - 5 + column));
+            }
+            event.filterAndAccept();
         } else if (expanded_ && key.check(FcitxKey_Down)) {
-            setCursor(list, list->cursorIndex() + 4); event.filterAndAccept();
+            const int cursor = std::max(0, list->cursorIndex());
+            if (cursor + 5 < list->size()) {
+                setCursor(list, cursor + 5);
+            } else if (auto *pageable = list->toPageable(); pageable && pageable->hasNext()) {
+                const int column = cursor % 5;
+                pageable->next();
+                ++page_;
+                setCursor(list, std::min(column, std::max(0, list->size() - 1)));
+            }
+            event.filterAndAccept();
         } else if (expanded_ && (key.check(FcitxKey_Page_Up) || key.check(FcitxKey_Page_Down))) {
             if (auto *pageable = list->toPageable()) {
-                if (key.check(FcitxKey_Page_Up) && pageable->hasPrev()) pageable->prev();
-                if (key.check(FcitxKey_Page_Down) && pageable->hasNext()) pageable->next();
+                if (key.check(FcitxKey_Page_Up) && pageable->hasPrev()) {
+                    pageable->prev(); page_ = std::max(1, page_ - 1);
+                }
+                if (key.check(FcitxKey_Page_Down) && pageable->hasNext()) {
+                    pageable->next(); ++page_;
+                }
                 setCursor(list, 0);
             }
             event.filterAndAccept();
+        } else if (expanded_ && key.states() == fcitx::KeyState::NoState &&
+                   key.sym() >= FcitxKey_a && key.sym() <= FcitxKey_y) {
+            const int index = static_cast<int>(key.sym() - FcitxKey_a);
+            if (index < list->size()) {
+                list->candidate(index).select(ic);
+                expanded_ = false;
+                page_ = 1;
+                event.filterAndAccept();
+            } else {
+                return;
+            }
         } else if (expanded_ && (key.check(FcitxKey_Return) || key.check(FcitxKey_KP_Enter))) {
             int cursor = std::clamp(list->cursorIndex(), 0, list->size() - 1);
             list->candidate(cursor).select(ic);
@@ -167,6 +236,7 @@ private:
 
     fcitx::Instance *instance_;
     bool expanded_ = false;
+    int page_ = 1;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> keyWatcher_;
 };
 

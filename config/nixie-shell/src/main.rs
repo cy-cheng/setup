@@ -92,6 +92,12 @@ enum FcitxMessage {
         aux: String,
         #[serde(default = "no_cursor")]
         cursor: i32,
+        #[serde(default = "default_page")]
+        page: i32,
+        #[serde(default)]
+        has_prev: bool,
+        #[serde(default)]
+        has_next: bool,
         #[serde(default)]
         items: Vec<CandidateItem>,
     },
@@ -102,6 +108,9 @@ fn default_scale() -> f64 {
 }
 fn no_cursor() -> i32 {
     -1
+}
+fn default_page() -> i32 {
+    1
 }
 
 #[derive(Clone)]
@@ -148,6 +157,21 @@ impl PopupManager {
         }
 
         position_popup(popup, anchor, bar, width);
+        popup.show_all();
+        self.active.borrow_mut().replace(popup.clone());
+    }
+
+    fn toggle_right(&self, popup: &gtk::Window, bar: &gtk::Window) {
+        let was_visible = popup.is_visible();
+        self.dismiss();
+        if was_visible {
+            return;
+        }
+
+        set_popup_monitor(popup, bar);
+        layer_shell::set_anchor(popup, Edge::Left, false);
+        layer_shell::set_anchor(popup, Edge::Right, true);
+        layer_shell::set_margin(popup, Edge::Right, 0);
         popup.show_all();
         self.active.borrow_mut().replace(popup.clone());
     }
@@ -246,12 +270,16 @@ fn popup_left(anchor: &gtk::Button, bar: &gtk::Window, width: i32) -> i32 {
     centered.clamp(8, (bar.allocated_width() - width - 8).max(8))
 }
 
-fn position_popup(popup: &gtk::Window, anchor: &gtk::Button, bar: &gtk::Window, width: i32) {
+fn set_popup_monitor(popup: &gtk::Window, bar: &gtk::Window) {
     if let (Some(display), Some(surface)) = (gdk::Display::default(), bar.window()) {
         if let Some(monitor) = display.monitor_at_window(&surface) {
             layer_shell::set_monitor(popup, &monitor);
         }
     }
+}
+
+fn position_popup(popup: &gtk::Window, anchor: &gtk::Button, bar: &gtk::Window, width: i32) {
+    set_popup_monitor(popup, bar);
     layer_shell::set_margin(popup, Edge::Left, popup_left(anchor, bar, width));
 }
 
@@ -291,6 +319,9 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
         preedit,
         aux,
         cursor,
+        page,
+        has_prev,
+        has_next,
         items,
     } = message
     else {
@@ -317,20 +348,36 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
         let grid = gtk::Grid::new();
         grid.set_column_spacing(5);
         grid.set_row_spacing(5);
-        for (index, item) in items.iter().enumerate() {
+        for (index, item) in items.iter().take(25).enumerate() {
             let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
             value.set_xalign(0.0);
             value.set_hexpand(true);
+            value.set_max_width_chars(18);
+            value.set_ellipsize(gtk::pango::EllipsizeMode::End);
             if index as i32 == cursor {
                 value.style_context().add_class("selected");
             }
-            grid.attach(&value, (index % 4) as i32, (index / 4) as i32, 1, 1);
+            grid.attach(&value, (index % 5) as i32, (index / 5) as i32, 1, 1);
         }
         root.pack_start(&grid, false, false, 0);
+        let mut page_parts = Vec::new();
+        if has_prev {
+            page_parts.push("↑ previous");
+        }
+        page_parts.push("Ctrl+Enter 原樣輸出");
+        page_parts.push(if has_next { "↓ more" } else { "end" });
+        let footer = label(
+            &format!("page {}  ·  {}", page.max(1), page_parts.join("  ·  ")),
+            "candidate-page",
+        );
+        footer.set_xalign(0.0);
+        root.pack_start(&footer, false, false, 0);
     } else {
         let row = hbox(4);
-        for (index, item) in items.iter().enumerate() {
+        for (index, item) in items.iter().take(7).enumerate() {
             let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
+            value.set_max_width_chars(14);
+            value.set_ellipsize(gtk::pango::EllipsizeMode::End);
             if index as i32 == cursor {
                 value.style_context().add_class("selected");
             }
@@ -338,18 +385,32 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
         }
         root.pack_start(&row, false, false, 0);
     }
-    let divisor = scale.max(1.0);
-    layer_shell::set_margin(
-        win,
-        Edge::Left,
-        ((x as f64 / divisor).round() as i32).max(8),
-    );
-    layer_shell::set_margin(
-        win,
-        Edge::Top,
-        ((y as f64 / divisor).round() as i32 + 7).max(50),
-    );
     win.show_all();
+    let divisor = scale.max(1.0);
+    let cursor_x = (x as f64 / divisor).round() as i32;
+    let cursor_y = (y as f64 / divisor).round() as i32;
+    let (_, natural_width) = root.preferred_width();
+    let (_, natural_height) = root.preferred_height();
+    if let Some(display) = gdk::Display::default() {
+        if let Some(monitor) = display.monitor_at_point(cursor_x, cursor_y) {
+            let geometry = monitor.geometry();
+            layer_shell::set_monitor(win, &monitor);
+            let relative_x = cursor_x - geometry.x();
+            let relative_y = cursor_y - geometry.y();
+            let left = relative_x.clamp(8, (geometry.width() - natural_width - 8).max(8));
+            let below = relative_y + 7;
+            let top = if below + natural_height <= geometry.height() - 8 {
+                below
+            } else {
+                (relative_y - natural_height - 7).max(8)
+            };
+            layer_shell::set_margin(win, Edge::Left, left);
+            layer_shell::set_margin(win, Edge::Top, top);
+            return;
+        }
+    }
+    layer_shell::set_margin(win, Edge::Left, cursor_x.max(8));
+    layer_shell::set_margin(win, Edge::Top, (cursor_y + 7).max(50));
 }
 
 fn create_llm_panel() -> (gtk::Window, gtk::Label) {
@@ -386,6 +447,8 @@ fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<Not
         let summary = label(&item.summary, "");
         summary.set_xalign(0.0);
         summary.set_hexpand(true);
+        summary.set_single_line_mode(true);
+        summary.set_ellipsize(gtk::pango::EllipsizeMode::End);
         let app = label(&item.app, "muted");
         top.pack_start(&summary, true, true, 0);
         top.pack_end(&app, false, false, 0);
@@ -394,7 +457,9 @@ fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<Not
             let body = label(&item.body, "muted");
             body.set_xalign(0.0);
             body.set_line_wrap(true);
-            body.set_max_width_chars(62);
+            body.set_lines(4);
+            body.set_ellipsize(gtk::pango::EllipsizeMode::End);
+            body.set_max_width_chars(72);
             content.pack_start(&body, false, false, 0);
         }
         row.add(&content);
@@ -436,7 +501,10 @@ fn create_notification_panel(
     updates: glib::Sender<ModuleUpdate>,
 ) -> (gtk::Window, gtk::Box) {
     let win = popup("nixie-notifications", 560, 820);
+    win.set_resizable(false);
+    win.set_size_request(560, 820);
     let root = vbox(10);
+    root.set_size_request(528, 788);
     root.style_context().add_class("panel");
     let title = hbox(8);
     let heading = label("Notifications", "panel-title");
@@ -466,6 +534,7 @@ fn create_notification_panel(
     root.pack_start(&title, false, false, 0);
     let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+    scroll.set_min_content_height(730);
     let list = vbox(8);
     scroll.add(&list);
     root.pack_start(&scroll, true, true, 0);
@@ -744,9 +813,8 @@ fn build_bar(
     let nref = notification_panel.clone();
     let notification_bar = win.clone();
     let notification_popups = popups.clone();
-    notifications.connect_clicked(move |button| {
-        notification_popups.toggle(&nref, button, &notification_bar, 560)
-    });
+    notifications
+        .connect_clicked(move |_| notification_popups.toggle_right(&nref, &notification_bar));
     let notification_updates = updates.clone();
     notifications.connect_button_press_event(move |_, e| {
         if e.button() == 3 {

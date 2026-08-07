@@ -11,10 +11,14 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 - Network, Bluetooth, audio, battery/power-profile, idle inhibitor, workspace,
   notification-center, and local Codex-quota modules.
 - Event-driven Fcitx status plus a custom candidate UI. Candidates stay in a
-  compact horizontal row; Down expands a 4-column by 5-row grid, arrows
-  navigate, Page Up/Down page, Enter commits, and Esc collapses.
+  seven-item horizontal row beside the text cursor; Down expands a 5-column by
+  5-row grid, arrows navigate (and continue across pages), `a` through `y`
+  select, Enter commits, and Esc collapses. `Ctrl+Enter` commits Rime's shown
+  注音 preedit literally. The panel flips above the cursor when needed.
 - Workspace-aware notification history: selecting a captured notification
-  returns to the Hyprland workspace where it arrived before restoring it.
+  returns to the Hyprland workspace where it arrived before restoring it. The
+  right-anchored center shows a taller, scrollable history with four-line
+  previews.
 - A consistent near-black/amber Nixie theme for the bar, Rofi, Dunst, and Fcitx.
 
 ## Runtime dependencies

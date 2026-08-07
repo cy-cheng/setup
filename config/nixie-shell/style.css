@@ -87,6 +87,6 @@ window.nixie-candidates {
 }
 .candidate-root { padding: 8px; }
 .candidate-preedit { padding: 2px 5px 5px; color: @amber; font-family: "Noto Sans TC"; font-size: 15px; }
-.candidate-item { padding: 6px 8px; border-radius: 6px; color: @text; font-family: "Noto Sans TC"; font-size: 15px; }
+.candidate-item { padding: 6px 8px; border-radius: 6px; color: @text; font-family: "Noto Sans Mono", monospace; font-size: 15px; }
 .candidate-item.selected { background: @amber; color: @bg; font-weight: 700; }
 .candidate-page { padding: 4px 5px 1px; color: @muted; font-size: 11px; }

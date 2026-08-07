@@ -14,6 +14,7 @@ addon_source="$config_dir/backend/fcitx-nixie-addon.cpp"
 addon_binary="${XDG_DATA_HOME:-$HOME/.local/share}/../lib/fcitx5/nixiestatus.so"
 addon_config="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/addon/nixiestatus.conf"
 ui_source="$config_dir/backend/fcitx-nixie-ui.cpp"
+ui_popup_source="$config_dir/backend/fcitx-wayland-popup.cpp"
 ui_binary="${XDG_DATA_HOME:-$HOME/.local/share}/../lib/fcitx5/nixieui.so"
 ui_config="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/addon/nixieui.conf"
 
@@ -22,10 +23,11 @@ if [[ ! -x "$menu_binary" || "$menu_source" -nt "$menu_binary" ]]; then
         $(pkg-config --cflags --libs libnm gtk+-3.0 gtk-layer-shell-0)
 fi
 
-if [[ ! -f "$ui_binary" || "$ui_source" -nt "$ui_binary" ]]; then
+if [[ ! -f "$ui_binary" || "$ui_source" -nt "$ui_binary" || "$ui_popup_source" -nt "$ui_binary" ]]; then
     mkdir -p "$(dirname "$ui_binary")" "$(dirname "$ui_config")"
-    c++ -std=c++20 -O3 -s -shared -fPIC "$ui_source" -o "$ui_binary" \
-        $(pkg-config --cflags --libs Fcitx5Core)
+    c++ -std=c++20 -O3 -s -shared -fPIC "$ui_source" "$ui_popup_source" \
+        -o "$ui_binary" \
+        $(pkg-config --cflags --libs Fcitx5Core pangocairo wayland-client)
     cp -- "$config_dir/fcitx/nixieui.conf" "$ui_config"
 fi
 

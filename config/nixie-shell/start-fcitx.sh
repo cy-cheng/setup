@@ -10,9 +10,12 @@ if [[ ! -f "$lib_dir/nixiestatus.so" || "$config_dir/backend/fcitx-nixie-addon.c
     c++ -std=c++20 -O3 -s -shared -fPIC "$config_dir/backend/fcitx-nixie-addon.cpp" \
         -o "$lib_dir/nixiestatus.so" $(pkg-config --cflags --libs Fcitx5Core)
 fi
-if [[ ! -f "$lib_dir/nixieui.so" || "$config_dir/backend/fcitx-nixie-ui.cpp" -nt "$lib_dir/nixieui.so" ]]; then
-    c++ -std=c++20 -O3 -s -shared -fPIC "$config_dir/backend/fcitx-nixie-ui.cpp" \
-        -o "$lib_dir/nixieui.so" $(pkg-config --cflags --libs Fcitx5Core)
+if [[ ! -f "$lib_dir/nixieui.so" || "$config_dir/backend/fcitx-nixie-ui.cpp" -nt "$lib_dir/nixieui.so" || "$config_dir/backend/fcitx-wayland-popup.cpp" -nt "$lib_dir/nixieui.so" ]]; then
+    c++ -std=c++20 -O3 -s -shared -fPIC \
+        "$config_dir/backend/fcitx-nixie-ui.cpp" \
+        "$config_dir/backend/fcitx-wayland-popup.cpp" \
+        -o "$lib_dir/nixieui.so" \
+        $(pkg-config --cflags --libs Fcitx5Core pangocairo wayland-client)
 fi
 if [[ ! -f "$addon_dir/nixiestatus.conf" ]] || ! cmp -s "$config_dir/fcitx/nixiestatus.conf" "$addon_dir/nixiestatus.conf"; then cp -- "$config_dir/fcitx/nixiestatus.conf" "$addon_dir/nixiestatus.conf"; fi
 if [[ ! -f "$addon_dir/nixieui.conf" ]] || ! cmp -s "$config_dir/fcitx/nixieui.conf" "$addon_dir/nixieui.conf"; then cp -- "$config_dir/fcitx/nixieui.conf" "$addon_dir/nixieui.conf"; fi

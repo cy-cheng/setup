@@ -8,6 +8,8 @@
 #include <fcitx/instance.h>
 #include <fcitx/userinterface.h>
 
+#include "fcitx-wayland-popup.hpp"
+
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -63,6 +65,7 @@ void sendMessage(const std::string &message) {
 class NixieUI final : public fcitx::UserInterface {
 public:
     explicit NixieUI(fcitx::Instance *instance) : instance_(instance) {
+        nativePopup_ = std::make_unique<NativeCandidatePopup>(instance_);
         keyWatcher_ = instance_->watchEvent(
             fcitx::EventType::InputContextKeyEvent,
             fcitx::EventWatcherPhase::PreInputMethod,
@@ -70,7 +73,10 @@ public:
     }
 
     bool available() override { return true; }
-    void suspend() override { sendMessage("{\"type\":\"candidates\",\"visible\":false}"); }
+    void suspend() override {
+        nativePopup_->hide();
+        sendMessage("{\"type\":\"candidates\",\"visible\":false}");
+    }
     void resume() override {}
 
     void update(fcitx::UserInterfaceComponent component, fcitx::InputContext *ic) override {
@@ -81,6 +87,7 @@ public:
 private:
     void publish(fcitx::InputContext *ic) {
         if (!ic) {
+            nativePopup_->hide();
             sendMessage("{\"type\":\"candidates\",\"visible\":false}");
             return;
         }
@@ -91,6 +98,11 @@ private:
              panel.auxUp().empty() && panel.auxDown().empty())) {
             expanded_ = false;
             page_ = 1;
+            nativePopup_->hide();
+            sendMessage("{\"type\":\"candidates\",\"visible\":false}");
+            return;
+        }
+        if (nativePopup_->render(ic, expanded_, page_)) {
             sendMessage("{\"type\":\"candidates\",\"visible\":false}");
             return;
         }
@@ -117,7 +129,7 @@ private:
             const int limit = expanded_ ? 25 : 7;
             for (int i = 0; i < std::min(candidates->size(), limit); ++i) {
                 if (i) json += ',';
-                const std::string index(1, static_cast<char>('a' + i));
+                const std::string index(1, static_cast<char>('A' + i));
                 json += "{\"label\":\"" + index + "\",\"text\":\"" + escape(candidates->candidate(i).textWithComment("  ").toString()) + "\"}";
             }
         }
@@ -239,6 +251,7 @@ private:
     fcitx::Instance *instance_;
     bool expanded_ = false;
     int page_ = 1;
+    std::unique_ptr<NativeCandidatePopup> nativePopup_;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> keyWatcher_;
 };
 

@@ -23,7 +23,9 @@ c++ -std=c++20 -O3 -s -shared -fPIC \
     -o "$lib_dir/nixiestatus.so" $(pkg-config --cflags --libs Fcitx5Core)
 c++ -std=c++20 -O3 -s -shared -fPIC \
     "$config_home/nixie-shell/backend/fcitx-nixie-ui.cpp" \
-    -o "$lib_dir/nixieui.so" $(pkg-config --cflags --libs Fcitx5Core)
+    "$config_home/nixie-shell/backend/fcitx-wayland-popup.cpp" \
+    -o "$lib_dir/nixieui.so" \
+    $(pkg-config --cflags --libs Fcitx5Core pangocairo wayland-client)
 install -m 0644 "$config_home/nixie-shell/fcitx/nixiestatus.conf" "$addon_dir/nixiestatus.conf"
 install -m 0644 "$config_home/nixie-shell/fcitx/nixieui.conf" "$addon_dir/nixieui.conf"
 

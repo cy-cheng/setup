@@ -109,6 +109,14 @@ fn default_scale() -> f64 {
 fn no_cursor() -> i32 {
     -1
 }
+
+fn candidate_width(value: &str, minimum: i32, maximum: i32) -> i32 {
+    value
+        .chars()
+        .map(|ch| if ch.is_ascii() { 1 } else { 2 })
+        .sum::<i32>()
+        .clamp(minimum, maximum)
+}
 fn default_page() -> i32 {
     1
 }
@@ -348,12 +356,18 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
         let grid = gtk::Grid::new();
         grid.set_column_spacing(5);
         grid.set_row_spacing(5);
+        let cell_width = items
+            .iter()
+            .take(25)
+            .map(|item| candidate_width(&format!("{} {}", item.label, item.text), 6, 28))
+            .max()
+            .unwrap_or(6);
         for (index, item) in items.iter().take(25).enumerate() {
             let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
             value.set_xalign(0.0);
             value.set_hexpand(true);
-            value.set_width_chars(14);
-            value.set_max_width_chars(18);
+            value.set_width_chars(cell_width);
+            value.set_max_width_chars(cell_width);
             value.set_ellipsize(gtk::pango::EllipsizeMode::End);
             if index as i32 == cursor {
                 value.style_context().add_class("selected");
@@ -376,9 +390,11 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
     } else {
         let row = hbox(4);
         for (index, item) in items.iter().take(7).enumerate() {
-            let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
-            value.set_width_chars(10);
-            value.set_max_width_chars(14);
+            let content = format!("{} {}", item.label, item.text);
+            let width = candidate_width(&content, 4, 20);
+            let value = label(&content, "candidate-item");
+            value.set_width_chars(width);
+            value.set_max_width_chars(width);
             value.set_ellipsize(gtk::pango::EllipsizeMode::End);
             if index as i32 == cursor {
                 value.style_context().add_class("selected");

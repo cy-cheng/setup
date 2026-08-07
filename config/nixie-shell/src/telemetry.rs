@@ -23,6 +23,7 @@ pub struct Snapshot {
     pub volume: u64,
     pub muted: bool,
     pub workspace: i32,
+    pub workspace_apps: Vec<Vec<String>>,
     pub network_name: String,
     pub network_icon: String,
     pub network_tooltip: String,
@@ -65,6 +66,34 @@ pub fn spawn(program: &str, args: &[&str]) {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn();
+}
+
+pub fn workspace_apps() -> Vec<Vec<String>> {
+    let mut workspaces = vec![Vec::new(); 4];
+    let Ok(clients) = serde_json::from_str::<Value>(&output("hyprctl", &["clients", "-j"])) else {
+        return workspaces;
+    };
+    let Some(clients) = clients.as_array() else {
+        return workspaces;
+    };
+
+    for client in clients {
+        let workspace = client["workspace"]["id"].as_i64().unwrap_or_default();
+        if !(1..=4).contains(&workspace) {
+            continue;
+        }
+        let class = client["class"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .or_else(|| client["initialClass"].as_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        let apps = &mut workspaces[(workspace - 1) as usize];
+        if !class.is_empty() && !apps.contains(&class) {
+            apps.push(class);
+        }
+    }
+    workspaces
 }
 
 pub fn read(path: impl AsRef<Path>) -> String {

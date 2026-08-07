@@ -14,6 +14,7 @@ use zbus::{MatchRule, MessageStream, MessageType, Proxy};
 #[derive(Clone)]
 pub enum ModuleUpdate {
     Workspace(i32),
+    WorkspaceApps(Vec<Vec<String>>),
     Metrics {
         cpu: u64,
         mem: u64,
@@ -53,6 +54,7 @@ impl ModuleUpdate {
     pub fn apply(self, state: &mut Snapshot) {
         match self {
             Self::Workspace(value) => state.workspace = value,
+            Self::WorkspaceApps(value) => state.workspace_apps = value,
             Self::Metrics { cpu, mem, temp } => {
                 state.cpu = cpu;
                 state.mem = mem;
@@ -126,6 +128,7 @@ pub fn refresh_notifications(tx: &Sender<ModuleUpdate>) {
 pub fn start_workspace(tx: Sender<ModuleUpdate>) {
     thread::spawn(move || loop {
         let _ = tx.send(ModuleUpdate::Workspace(telemetry::active_workspace()));
+        let _ = tx.send(ModuleUpdate::WorkspaceApps(telemetry::workspace_apps()));
         let runtime = std::env::var("XDG_RUNTIME_DIR")
             .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::geteuid() }));
         let signature = std::env::var("HYPRLAND_INSTANCE_SIGNATURE").unwrap_or_default();
@@ -145,6 +148,17 @@ pub fn start_workspace(tx: Sender<ModuleUpdate>) {
                         });
                     if let Some(workspace) = value.and_then(|v| v.parse::<i32>().ok()) {
                         if tx.send(ModuleUpdate::Workspace(workspace)).is_err() {
+                            return;
+                        }
+                    }
+                    if line.starts_with("openwindow>>")
+                        || line.starts_with("closewindow>>")
+                        || line.starts_with("movewindow>>")
+                    {
+                        if tx
+                            .send(ModuleUpdate::WorkspaceApps(telemetry::workspace_apps()))
+                            .is_err()
+                        {
                             return;
                         }
                     }

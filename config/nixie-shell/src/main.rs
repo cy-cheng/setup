@@ -121,6 +121,54 @@ fn default_page() -> i32 {
     1
 }
 
+const WORKSPACE_GLYPHS: [&str; 4] = ["α", "β", "γ", "δ"];
+
+fn application_icon(class: &str) -> &'static str {
+    match class {
+        value if value.contains("firefox") => "󰈹",
+        value if value.contains("chrom") || value.contains("brave") => "",
+        value
+            if value.contains("kitty")
+                || value.contains("foot")
+                || value.contains("alacritty")
+                || value.contains("wezterm") =>
+        {
+            ""
+        }
+        value if value.contains("code") || value.contains("codium") => "󰨞",
+        value if value.contains("discord") || value.contains("vesktop") => "󰙯",
+        value
+            if value.contains("thunar")
+                || value.contains("nautilus")
+                || value.contains("dolphin") =>
+        {
+            "󰉋"
+        }
+        value if value.contains("spotify") => "",
+        value if value.contains("steam") => "",
+        value if value.contains("obsidian") => "󰠮",
+        value if value.contains("zathura") => "󰈦",
+        value if value.contains("telegram") => "",
+        value if value.contains("signal") => "󰭹",
+        _ => "󰣆",
+    }
+}
+
+fn workspace_label(index: usize, apps: &[String]) -> String {
+    let mut icons = Vec::new();
+    for class in apps {
+        let icon = application_icon(class);
+        if !icons.contains(&icon) {
+            icons.push(icon);
+        }
+    }
+    if icons.is_empty() {
+        WORKSPACE_GLYPHS[index].into()
+    } else {
+        format!("{} {}", WORKSPACE_GLYPHS[index], icons.join(" "))
+    }
+}
+
 #[derive(Clone)]
 struct Ui {
     workspace_buttons: Vec<gtk::Button>,
@@ -703,7 +751,8 @@ fn build_bar(
 
     let workspaces = hbox(3);
     let mut workspace_buttons = Vec::new();
-    for (id, glyph) in [(1, "α"), (2, "β"), (3, "γ"), (4, "δ")] {
+    for (id, glyph) in WORKSPACE_GLYPHS.iter().enumerate() {
+        let id = id as i32 + 1;
         let b = button("workspace");
         b.set_label(glyph);
         b.set_tooltip_text(Some(&format!("Workspace {id}")));
@@ -819,6 +868,42 @@ fn build_bar(
             gtk::Inhibit(false)
         }
     });
+    audio.add_events(gdk::EventMask::SCROLL_MASK | gdk::EventMask::SMOOTH_SCROLL_MASK);
+    let smooth_volume_scroll = Rc::new(RefCell::new(0.0));
+    audio.connect_scroll_event(move |_, event| {
+        let (change, handled) = match event.direction() {
+            gdk::ScrollDirection::Up => (Some("5%+"), true),
+            gdk::ScrollDirection::Down => (Some("5%-"), true),
+            gdk::ScrollDirection::Smooth => {
+                let (_, delta_y) = event.delta();
+                let mut accumulated = smooth_volume_scroll.borrow_mut();
+                *accumulated += delta_y;
+                if *accumulated <= -1.0 {
+                    *accumulated += 1.0;
+                    (Some("5%+"), true)
+                } else if *accumulated >= 1.0 {
+                    *accumulated -= 1.0;
+                    (Some("5%-"), true)
+                } else {
+                    (None, true)
+                }
+            }
+            _ => (None, false),
+        };
+        if let Some(change) = change {
+            telemetry::spawn(
+                "wpctl",
+                &[
+                    "set-volume",
+                    "--limit",
+                    "1.0",
+                    "@DEFAULT_AUDIO_SINK@",
+                    change,
+                ],
+            );
+        }
+        gtk::Inhibit(handled)
+    });
     right.pack_start(&audio, false, false, 0);
     let power = button("power");
     power.set_label("󰾅 󰁹 --");
@@ -892,8 +977,18 @@ fn build_bar(
 }
 
 fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
-    if matches!(update, ModuleUpdate::Workspace(_)) {
+    if matches!(
+        update,
+        ModuleUpdate::Workspace(_) | ModuleUpdate::WorkspaceApps(_)
+    ) {
         for (idx, b) in ui.workspace_buttons.iter().enumerate() {
+            let apps = s.workspace_apps.get(idx).map(Vec::as_slice).unwrap_or(&[]);
+            b.set_label(&workspace_label(idx, apps));
+            b.set_tooltip_text(Some(&if apps.is_empty() {
+                format!("Workspace {}", idx + 1)
+            } else {
+                format!("Workspace {} · {}", idx + 1, apps.join(", "))
+            }));
             if s.workspace == (idx + 1) as i32 {
                 b.style_context().add_class("active");
             } else {
@@ -955,9 +1050,12 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
             )
         });
         ui.audio.set_tooltip_text(Some(&if s.muted {
-            "Muted · right-click for mixer".into()
+            "Muted · scroll to adjust · right-click for mixer".into()
         } else {
-            format!("Volume {}% · right-click for mixer", s.volume)
+            format!(
+                "Volume {}% · scroll to adjust · right-click for mixer",
+                s.volume
+            )
         }));
     }
     if matches!(

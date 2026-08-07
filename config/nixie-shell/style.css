@@ -40,7 +40,7 @@ button.module:hover {
   color: @amber;
 }
 
-.workspace { min-width: 27px; min-height: 34px; padding: 0; color: @muted; font-size: 19px; }
+.workspace { min-width: 27px; min-height: 34px; padding: 0; color: @muted; font-size: 30px; }
 .workspace.active { background: @amber; color: @bg; }
 .hardware { color: @muted; font-size: 12px; }
 .clock-time { color: @amber; font-weight: 700; font-size: 15px; }

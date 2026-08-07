@@ -224,7 +224,24 @@ class NativeCandidatePopup::Impl {
 
         const std::string preedit =
             panel.clientPreedit().empty() ? panel.preedit().toString() : panel.clientPreedit().toString();
-        return draw(ic, candidates, preedit, expanded, page, list ? list->cursorIndex() : -1,
+        std::string auxiliary = panel.auxUp().toString();
+        const std::string auxiliaryDown = panel.auxDown().toString();
+        if (!auxiliaryDown.empty()) {
+            if (!auxiliary.empty()) auxiliary += "  ";
+            auxiliary += auxiliaryDown;
+        }
+
+        std::string heading = preedit;
+        if (!auxiliary.empty()) {
+            if (!heading.empty()) heading += "  ";
+            heading += auxiliary;
+        }
+        if (heading.empty() && candidates.empty()) {
+            hide();
+            return true;
+        }
+
+        return draw(ic, candidates, heading, expanded, page, list ? list->cursorIndex() : -1,
                     list && list->toPageable() && list->toPageable()->hasPrev(),
                     list && list->toPageable() && list->toPageable()->hasNext());
     }

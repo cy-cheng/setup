@@ -13,6 +13,7 @@ glib = "0.17"
 gtk = "0.17"
 gtk-layer-shell = "0.6.1"
 libc = "0.2"
+libpulse-binding = "2.30"
 log = "0.4"
 notifier_host = { git = "https://github.com/elkowar/eww.git", rev = "d87c2fdbfdc012e76d229e4e9ea3325bc0f23e89", package = "notifier_host" }
 serde = { version = "1", features = ["derive"] }

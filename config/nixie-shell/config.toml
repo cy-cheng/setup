@@ -12,6 +12,7 @@ blacklist = ["networkmanager", "nm-applet", "nm_applet", "fcitx", "input method"
 pinned_first = ["discord"]
 
 [refresh]
-hardware_seconds = 3
-services_seconds = 15
+metrics_seconds = 3
 llm_seconds = 60
+reconcile_seconds = 300
+event_coalesce_ms = 75

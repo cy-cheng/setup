@@ -1,17 +1,19 @@
+mod events;
 mod telemetry;
 mod tray;
 
 use anyhow::{Context, Result};
-use chrono::Local;
+use chrono::{Local, Timelike};
+use events::ModuleUpdate;
 use futures::TryStreamExt;
 use gtk::gdk;
 use gtk::prelude::*;
 use gtk_layer_shell::{self as layer_shell, Edge, Layer};
 use serde::Deserialize;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fs;
-use std::collections::HashMap;
 use std::os::unix::net::UnixDatagram;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -29,10 +31,18 @@ struct Commands {
 }
 
 #[derive(Clone, Deserialize)]
-struct TrayConfig { blacklist: Vec<String>, pinned_first: Vec<String> }
+struct TrayConfig {
+    blacklist: Vec<String>,
+    pinned_first: Vec<String>,
+}
 
 #[derive(Clone, Deserialize)]
-struct RefreshConfig { hardware_seconds: u64, services_seconds: u64, llm_seconds: u64 }
+struct RefreshConfig {
+    metrics_seconds: u64,
+    llm_seconds: u64,
+    reconcile_seconds: u64,
+    event_coalesce_ms: u64,
+}
 
 #[derive(Clone, Deserialize)]
 struct Config {
@@ -44,32 +54,55 @@ struct Config {
 }
 
 #[derive(Clone)]
-struct NotificationMeta { app: String, summary: String, workspace: i32 }
+struct NotificationMeta {
+    app: String,
+    summary: String,
+    workspace: i32,
+}
 
 #[derive(Clone, Deserialize)]
-struct CandidateItem { label: String, text: String }
+struct CandidateItem {
+    label: String,
+    text: String,
+}
 
 #[derive(Clone, Deserialize)]
 #[serde(tag = "type")]
 enum FcitxMessage {
     #[serde(rename = "status")]
-    Status { active: bool, name: String, label: String },
+    Status {
+        active: bool,
+        name: String,
+        label: String,
+    },
     #[serde(rename = "candidates")]
     Candidates {
         visible: bool,
-        #[serde(default)] expanded: bool,
-        #[serde(default)] x: i32,
-        #[serde(default)] y: i32,
-        #[serde(default = "default_scale")] scale: f64,
-        #[serde(default)] preedit: String,
-        #[serde(default)] aux: String,
-        #[serde(default = "no_cursor")] cursor: i32,
-        #[serde(default)] items: Vec<CandidateItem>,
+        #[serde(default)]
+        expanded: bool,
+        #[serde(default)]
+        x: i32,
+        #[serde(default)]
+        y: i32,
+        #[serde(default = "default_scale")]
+        scale: f64,
+        #[serde(default)]
+        preedit: String,
+        #[serde(default)]
+        aux: String,
+        #[serde(default = "no_cursor")]
+        cursor: i32,
+        #[serde(default)]
+        items: Vec<CandidateItem>,
     },
 }
 
-fn default_scale() -> f64 { 1.0 }
-fn no_cursor() -> i32 { -1 }
+fn default_scale() -> f64 {
+    1.0
+}
+fn no_cursor() -> i32 {
+    -1
+}
 
 #[derive(Clone)]
 struct Ui {
@@ -85,19 +118,30 @@ struct Ui {
     llm_detail: gtk::Label,
     audio: gtk::Button,
     power: gtk::Button,
+    idle: gtk::Button,
     bluetooth: gtk::Button,
     notifications: gtk::Button,
 }
 
 fn shell_words(command: &str) -> (String, Vec<String>) {
     let mut parts = command.split_whitespace();
-    (parts.next().unwrap_or_default().to_string(), parts.map(str::to_string).collect())
+    (
+        parts.next().unwrap_or_default().to_string(),
+        parts.map(str::to_string).collect(),
+    )
 }
 
 fn run_command(command: &str) {
     let (program, args) = shell_words(command);
-    if program.is_empty() { return; }
-    let _ = Command::new(program).args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+    if program.is_empty() {
+        return;
+    }
+    let _ = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
 }
 
 fn focus_workspace(workspace: i32) {
@@ -108,18 +152,26 @@ fn focus_workspace(workspace: i32) {
 fn button(class: &str) -> gtk::Button {
     let value = gtk::Button::new();
     value.style_context().add_class("module");
-    for item in class.split_whitespace() { value.style_context().add_class(item); }
+    for item in class.split_whitespace() {
+        value.style_context().add_class(item);
+    }
     value
 }
 
 fn label(text: &str, class: &str) -> gtk::Label {
     let value = gtk::Label::new(Some(text));
-    for item in class.split_whitespace() { value.style_context().add_class(item); }
+    for item in class.split_whitespace() {
+        value.style_context().add_class(item);
+    }
     value
 }
 
-fn hbox(spacing: i32) -> gtk::Box { gtk::Box::new(gtk::Orientation::Horizontal, spacing) }
-fn vbox(spacing: i32) -> gtk::Box { gtk::Box::new(gtk::Orientation::Vertical, spacing) }
+fn hbox(spacing: i32) -> gtk::Box {
+    gtk::Box::new(gtk::Orientation::Horizontal, spacing)
+}
+fn vbox(spacing: i32) -> gtk::Box {
+    gtk::Box::new(gtk::Orientation::Vertical, spacing)
+}
 
 fn popup(name: &str, width: i32, height: i32, right: i32) -> gtk::Window {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
@@ -134,90 +186,182 @@ fn popup(name: &str, width: i32, height: i32, right: i32) -> gtk::Window {
     layer_shell::set_margin(&win, Edge::Top, 50);
     layer_shell::set_margin(&win, Edge::Right, right);
     layer_shell::set_keyboard_interactivity(&win, false);
-    win.connect_delete_event(|w, _| { w.hide(); gtk::Inhibit(true) });
+    win.connect_delete_event(|w, _| {
+        w.hide();
+        gtk::Inhibit(true)
+    });
     win
 }
 
 fn toggle_popup(win: &gtk::Window) {
-    if win.is_visible() { win.hide(); } else { win.show_all(); }
+    if win.is_visible() {
+        win.hide();
+    } else {
+        win.show_all();
+    }
 }
 
 fn create_calendar() -> gtk::Window {
     let win = popup("nixie-calendar", 330, 280, 12);
-    let root = vbox(10); root.style_context().add_class("panel");
+    let root = vbox(10);
+    root.style_context().add_class("panel");
     root.pack_start(&label("Calendar", "panel-title"), false, false, 0);
     root.pack_start(&gtk::Calendar::new(), true, true, 0);
-    win.add(&root); win
+    win.add(&root);
+    win
 }
 
 fn create_candidate_window() -> (gtk::Window, gtk::Box) {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
-    win.set_widget_name("nixie-candidates"); win.style_context().add_class("nixie-candidates");
-    layer_shell::init_for_window(&win); layer_shell::set_namespace(&win, "nixie-candidates"); layer_shell::set_layer(&win, Layer::Overlay);
-    layer_shell::set_anchor(&win, Edge::Top, true); layer_shell::set_anchor(&win, Edge::Left, true); layer_shell::set_keyboard_interactivity(&win, false);
-    let root = vbox(6); root.style_context().add_class("candidate-root"); win.add(&root); (win, root)
+    win.set_widget_name("nixie-candidates");
+    win.style_context().add_class("nixie-candidates");
+    layer_shell::init_for_window(&win);
+    layer_shell::set_namespace(&win, "nixie-candidates");
+    layer_shell::set_layer(&win, Layer::Overlay);
+    layer_shell::set_anchor(&win, Edge::Top, true);
+    layer_shell::set_anchor(&win, Edge::Left, true);
+    layer_shell::set_keyboard_interactivity(&win, false);
+    let root = vbox(6);
+    root.style_context().add_class("candidate-root");
+    win.add(&root);
+    (win, root)
 }
 
 fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) {
-    let FcitxMessage::Candidates { visible, expanded, x, y, scale, preedit, aux, cursor, items } = message else { return; };
-    if !visible { win.hide(); return; }
-    for child in root.children() { root.remove(&child); }
-    let heading = [preedit, aux].into_iter().filter(|v| !v.is_empty()).collect::<Vec<_>>().join("  ");
-    if !heading.is_empty() { let value=label(&heading,"candidate-preedit"); value.set_xalign(0.0); root.pack_start(&value,false,false,0); }
-    if expanded {
-        let grid=gtk::Grid::new(); grid.set_column_spacing(5); grid.set_row_spacing(5);
-        for (index,item) in items.iter().enumerate() {
-            let value=label(&format!("{} {}",item.label,item.text),"candidate-item"); value.set_xalign(0.0); value.set_hexpand(true);
-            if index as i32==cursor { value.style_context().add_class("selected"); }
-            grid.attach(&value,(index%4) as i32,(index/4) as i32,1,1);
-        }
-        root.pack_start(&grid,false,false,0);
-    } else {
-        let row=hbox(4);
-        for (index,item) in items.iter().enumerate() {
-            let value=label(&format!("{} {}",item.label,item.text),"candidate-item");
-            if index as i32==cursor { value.style_context().add_class("selected"); }
-            row.pack_start(&value,false,false,0);
-        }
-        root.pack_start(&row,false,false,0);
+    let FcitxMessage::Candidates {
+        visible,
+        expanded,
+        x,
+        y,
+        scale,
+        preedit,
+        aux,
+        cursor,
+        items,
+    } = message
+    else {
+        return;
+    };
+    if !visible {
+        win.hide();
+        return;
     }
-    let divisor=scale.max(1.0); layer_shell::set_margin(win,Edge::Left,((x as f64/divisor).round() as i32).max(8)); layer_shell::set_margin(win,Edge::Top,((y as f64/divisor).round() as i32+7).max(50));
+    for child in root.children() {
+        root.remove(&child);
+    }
+    let heading = [preedit, aux]
+        .into_iter()
+        .filter(|v| !v.is_empty())
+        .collect::<Vec<_>>()
+        .join("  ");
+    if !heading.is_empty() {
+        let value = label(&heading, "candidate-preedit");
+        value.set_xalign(0.0);
+        root.pack_start(&value, false, false, 0);
+    }
+    if expanded {
+        let grid = gtk::Grid::new();
+        grid.set_column_spacing(5);
+        grid.set_row_spacing(5);
+        for (index, item) in items.iter().enumerate() {
+            let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
+            value.set_xalign(0.0);
+            value.set_hexpand(true);
+            if index as i32 == cursor {
+                value.style_context().add_class("selected");
+            }
+            grid.attach(&value, (index % 4) as i32, (index / 4) as i32, 1, 1);
+        }
+        root.pack_start(&grid, false, false, 0);
+    } else {
+        let row = hbox(4);
+        for (index, item) in items.iter().enumerate() {
+            let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
+            if index as i32 == cursor {
+                value.style_context().add_class("selected");
+            }
+            row.pack_start(&value, false, false, 0);
+        }
+        root.pack_start(&row, false, false, 0);
+    }
+    let divisor = scale.max(1.0);
+    layer_shell::set_margin(
+        win,
+        Edge::Left,
+        ((x as f64 / divisor).round() as i32).max(8),
+    );
+    layer_shell::set_margin(
+        win,
+        Edge::Top,
+        ((y as f64 / divisor).round() as i32 + 7).max(50),
+    );
     win.show_all();
 }
 
 fn create_llm_panel() -> (gtk::Window, gtk::Label) {
     let win = popup("nixie-llm", 370, 250, 12);
-    let root = vbox(12); root.style_context().add_class("panel");
+    let root = vbox(12);
+    root.style_context().add_class("panel");
     root.pack_start(&label("Local AI usage", "panel-title"), false, false, 0);
-    let detail = label("Collecting usage…", ""); detail.set_xalign(0.0); detail.set_line_wrap(true);
+    let detail = label("Collecting usage…", "");
+    detail.set_xalign(0.0);
+    detail.set_line_wrap(true);
     root.pack_start(&detail, true, true, 0);
-    let open = button("panel-action"); open.set_label("Open Codex directory");
+    let open = button("panel-action");
+    open.set_label("Open Codex directory");
     open.connect_clicked(|_| telemetry::spawn("xdg-open", &["/home/brine/.codex"]));
-    root.pack_end(&open, false, false, 0); win.add(&root);
+    root.pack_end(&open, false, false, 0);
+    win.add(&root);
     (win, detail)
 }
 
 fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<NotificationMeta>>>) {
-    for child in list.children() { list.remove(&child); }
+    for child in list.children() {
+        list.remove(&child);
+    }
     let history = telemetry::history();
     if history.is_empty() {
-        let empty = label("No notifications", "muted"); empty.set_margin_top(24); list.pack_start(&empty, false, false, 0);
+        let empty = label("No notifications", "muted");
+        empty.set_margin_top(24);
+        list.pack_start(&empty, false, false, 0);
     }
     for item in history.into_iter().take(30) {
         let row = button("panel-row");
         let content = vbox(3);
-        let top = hbox(8); let summary = label(&item.summary, ""); summary.set_xalign(0.0); summary.set_hexpand(true);
-        let app = label(&item.app, "muted"); top.pack_start(&summary, true, true, 0); top.pack_end(&app, false, false, 0);
+        let top = hbox(8);
+        let summary = label(&item.summary, "");
+        summary.set_xalign(0.0);
+        summary.set_hexpand(true);
+        let app = label(&item.app, "muted");
+        top.pack_start(&summary, true, true, 0);
+        top.pack_end(&app, false, false, 0);
         content.pack_start(&top, false, false, 0);
-        if !item.body.is_empty() { let body = label(&item.body, "muted"); body.set_xalign(0.0); body.set_line_wrap(true); body.set_max_width_chars(48); content.pack_start(&body, false, false, 0); }
+        if !item.body.is_empty() {
+            let body = label(&item.body, "muted");
+            body.set_xalign(0.0);
+            body.set_line_wrap(true);
+            body.set_max_width_chars(48);
+            content.pack_start(&body, false, false, 0);
+        }
         row.add(&content);
-        let target = metadata.borrow().iter().rev().find(|m| {
-            (m.app.is_empty() || item.app.contains(&m.app) || m.app.contains(&item.app)) && (m.summary.is_empty() || m.summary == item.summary)
-        }).map(|m| m.workspace);
+        let target = metadata
+            .borrow()
+            .iter()
+            .rev()
+            .find(|m| {
+                (m.app.is_empty() || item.app.contains(&m.app) || m.app.contains(&item.app))
+                    && (m.summary.is_empty() || m.summary == item.summary)
+            })
+            .map(|m| m.workspace);
         let id = item.id;
-        let tip = target.map(|w| format!("Open from workspace {w}")).unwrap_or_else(|| "Restore notification".into()); row.set_tooltip_text(Some(&tip));
+        let tip = target
+            .map(|w| format!("Open from workspace {w}"))
+            .unwrap_or_else(|| "Restore notification".into());
+        row.set_tooltip_text(Some(&tip));
         row.connect_clicked(move |_| {
-            if let Some(workspace) = target { focus_workspace(workspace); }
+            if let Some(workspace) = target {
+                focus_workspace(workspace);
+            }
             telemetry::spawn("dunstctl", &["history-pop", &id.to_string()]);
         });
         list.pack_start(&row, false, false, 0);
@@ -225,34 +369,83 @@ fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<Not
     list.show_all();
 }
 
-fn create_notification_panel(metadata: Rc<RefCell<VecDeque<NotificationMeta>>>, indicator: gtk::Button) -> (gtk::Window, gtk::Box) {
+fn refresh_notifications_after(tx: glib::Sender<ModuleUpdate>, delay_ms: u64) {
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(delay_ms));
+        events::refresh_notifications(&tx);
+    });
+}
+
+fn create_notification_panel(
+    metadata: Rc<RefCell<VecDeque<NotificationMeta>>>,
+    indicator: gtk::Button,
+    updates: glib::Sender<ModuleUpdate>,
+) -> (gtk::Window, gtk::Box) {
     let win = popup("nixie-notifications", 430, 540, 12);
-    let root = vbox(10); root.style_context().add_class("panel");
-    let title = hbox(8); let heading = label("Notifications", "panel-title"); heading.set_hexpand(true); heading.set_xalign(0.0);
-    let dnd = button("panel-action"); dnd.set_label("󰂛"); dnd.set_tooltip_text(Some("Toggle do not disturb")); dnd.connect_clicked(|_| telemetry::spawn("dunstctl", &["set-paused", "toggle"]));
-    let clear = button("panel-action"); clear.set_label("󰆴"); clear.set_tooltip_text(Some("Clear notification history")); clear.connect_clicked(move |_| { telemetry::spawn("dunstctl", &["history-clear"]); indicator.set_label("󰂚"); indicator.style_context().remove_class("unread"); });
-    title.pack_start(&heading, true, true, 0); title.pack_end(&clear, false, false, 0); title.pack_end(&dnd, false, false, 0); root.pack_start(&title, false, false, 0);
-    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>); scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-    let list = vbox(8); scroll.add(&list); root.pack_start(&scroll, true, true, 0); win.add(&root);
-    let list_ref = list.clone(); let meta_ref = metadata.clone();
+    let root = vbox(10);
+    root.style_context().add_class("panel");
+    let title = hbox(8);
+    let heading = label("Notifications", "panel-title");
+    heading.set_hexpand(true);
+    heading.set_xalign(0.0);
+    let dnd = button("panel-action");
+    dnd.set_label("󰂛");
+    dnd.set_tooltip_text(Some("Toggle do not disturb"));
+    let dnd_updates = updates.clone();
+    dnd.connect_clicked(move |_| {
+        telemetry::spawn("dunstctl", &["set-paused", "toggle"]);
+        refresh_notifications_after(dnd_updates.clone(), 75);
+    });
+    let clear = button("panel-action");
+    clear.set_label("󰆴");
+    clear.set_tooltip_text(Some("Clear notification history"));
+    let clear_updates = updates.clone();
+    clear.connect_clicked(move |_| {
+        telemetry::spawn("dunstctl", &["history-clear"]);
+        indicator.set_label("󰂚");
+        indicator.style_context().remove_class("unread");
+        refresh_notifications_after(clear_updates.clone(), 75);
+    });
+    title.pack_start(&heading, true, true, 0);
+    title.pack_end(&clear, false, false, 0);
+    title.pack_end(&dnd, false, false, 0);
+    root.pack_start(&title, false, false, 0);
+    let scroll = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+    scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+    let list = vbox(8);
+    scroll.add(&list);
+    root.pack_start(&scroll, true, true, 0);
+    win.add(&root);
+    let list_ref = list.clone();
+    let meta_ref = metadata.clone();
     win.connect_show(move |_| refresh_notification_rows(&list_ref, &meta_ref));
     (win, list)
 }
 
-fn monitor_notifications(tx: glib::Sender<NotificationMeta>) {
+fn monitor_notifications(
+    tx: glib::Sender<NotificationMeta>,
+    updates: glib::Sender<ModuleUpdate>,
+    state: Rc<RefCell<Snapshot>>,
+) {
     glib::MainContext::default().spawn_local(async move { loop {
         let result: zbus::Result<()> = async {
             let connection = zbus::Connection::session().await?;
-            let rules = ["type='method_call',interface='org.freedesktop.Notifications',member='Notify'"];
+            let rules = [
+                "type='method_call',interface='org.freedesktop.Notifications',member='Notify'",
+                "type='signal',interface='org.freedesktop.Notifications',member='NotificationClosed'",
+            ];
             connection.call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus.Monitoring"), "BecomeMonitor", &(&rules[..], 0u32)).await?;
             let mut stream = zbus::MessageStream::from(connection);
             while let Some(message) = stream.try_next().await? {
-                if message.interface().as_ref().map(|v| v.as_str()) != Some("org.freedesktop.Notifications") || message.member().as_ref().map(|v| v.as_str()) != Some("Notify") { continue; }
-                type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, zbus::zvariant::OwnedValue>, i32);
-                if let Ok((app, _, _, summary, _, _, _, _)) = message.body::<NotifyBody>() {
-                    let workspace = telemetry::output("hyprctl", &["activeworkspace", "-j"]).split("\"id\"").nth(1).and_then(|x| x.split(':').nth(1)).and_then(|x| x.trim().split([',','}']).next()).and_then(|x| x.parse().ok()).unwrap_or(1);
-                    let _ = tx.send(NotificationMeta { app, summary, workspace });
+                if message.interface().as_ref().map(|v| v.as_str()) != Some("org.freedesktop.Notifications") { continue; }
+                if message.member().as_ref().map(|v| v.as_str()) == Some("Notify") {
+                    type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, zbus::zvariant::OwnedValue>, i32);
+                    if let Ok((app, _, _, summary, _, _, _, _)) = message.body::<NotifyBody>() {
+                        let workspace = state.borrow().workspace.max(1);
+                        let _ = tx.send(NotificationMeta { app, summary, workspace });
+                    }
                 }
+                refresh_notifications_after(updates.clone(), 75);
             }
             Ok(())
         }.await;
@@ -263,101 +456,511 @@ fn monitor_notifications(tx: glib::Sender<NotificationMeta>) {
 
 fn monitor_input(tx: glib::Sender<FcitxMessage>) {
     thread::spawn(move || {
-        let running = !telemetry::output("pgrep", &["-x", "fcitx5"]).trim().is_empty();
-        let state = if running { telemetry::output("fcitx5-remote", &[]).trim().parse::<i32>().unwrap_or(1) } else { 1 };
-        let name = if running { telemetry::output("fcitx5-remote", &["-n"]).trim().to_string() } else { "keyboard-us".into() };
-        let label = if state != 2 { "EN" } else if name.contains("keyboard-de") { "DE" } else if name.contains("rime") || name.contains("chewing") { "中" } else if name.contains("mozc") { "日" } else { "EN" };
-        let _ = tx.send(FcitxMessage::Status { active: state == 2, name, label: label.into() });
-        let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::geteuid() }));
+        let running = !telemetry::output("pgrep", &["-x", "fcitx5"])
+            .trim()
+            .is_empty();
+        let state = if running {
+            telemetry::output("fcitx5-remote", &[])
+                .trim()
+                .parse::<i32>()
+                .unwrap_or(1)
+        } else {
+            1
+        };
+        let name = if running {
+            telemetry::output("fcitx5-remote", &["-n"])
+                .trim()
+                .to_string()
+        } else {
+            "keyboard-us".into()
+        };
+        let label = if state != 2 {
+            "EN"
+        } else if name.contains("keyboard-de") {
+            "DE"
+        } else if name.contains("rime") || name.contains("chewing") {
+            "中"
+        } else if name.contains("mozc") {
+            "日"
+        } else {
+            "EN"
+        };
+        let _ = tx.send(FcitxMessage::Status {
+            active: state == 2,
+            name,
+            label: label.into(),
+        });
+        let runtime = std::env::var("XDG_RUNTIME_DIR")
+            .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::geteuid() }));
         let socket_path = PathBuf::from(runtime).join("nixie-fcitx.sock");
         let _ = fs::remove_file(&socket_path);
-        let Ok(socket) = UnixDatagram::bind(&socket_path) else { log::warn!("cannot bind input-method event socket"); return; };
+        let Ok(socket) = UnixDatagram::bind(&socket_path) else {
+            log::warn!("cannot bind input-method event socket");
+            return;
+        };
         loop {
             let mut data = [0u8; 65535];
             match socket.recv(&mut data) {
-                Ok(size) => if let Ok(value) = serde_json::from_slice::<FcitxMessage>(&data[..size]) { if tx.send(value).is_err() { break; } },
-                Err(error) => { log::warn!("input-method event socket: {error}"); break; }
+                Ok(size) => {
+                    if let Ok(value) = serde_json::from_slice::<FcitxMessage>(&data[..size]) {
+                        if tx.send(value).is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(error) => {
+                    log::warn!("input-method event socket: {error}");
+                    break;
+                }
             }
         }
         let _ = fs::remove_file(socket_path);
     });
 }
 
-fn build_bar(config: &Config, metadata: Rc<RefCell<VecDeque<NotificationMeta>>>) -> (gtk::Window, Ui) {
-    let win = gtk::Window::new(gtk::WindowType::Toplevel); win.style_context().add_class("nixie-bar");
-    layer_shell::init_for_window(&win); layer_shell::set_namespace(&win, "nixie-shell"); layer_shell::set_layer(&win, Layer::Top); layer_shell::set_anchor(&win, Edge::Top, true); layer_shell::set_anchor(&win, Edge::Left, true); layer_shell::set_anchor(&win, Edge::Right, true); layer_shell::auto_exclusive_zone_enable(&win); win.set_default_size(1, config.height); layer_shell::set_keyboard_interactivity(&win, false);
+fn build_bar(
+    config: &Config,
+    metadata: Rc<RefCell<VecDeque<NotificationMeta>>>,
+    updates: glib::Sender<ModuleUpdate>,
+) -> (gtk::Window, Ui) {
+    let win = gtk::Window::new(gtk::WindowType::Toplevel);
+    win.style_context().add_class("nixie-bar");
+    layer_shell::init_for_window(&win);
+    layer_shell::set_namespace(&win, "nixie-shell");
+    layer_shell::set_layer(&win, Layer::Top);
+    layer_shell::set_anchor(&win, Edge::Top, true);
+    layer_shell::set_anchor(&win, Edge::Left, true);
+    layer_shell::set_anchor(&win, Edge::Right, true);
+    layer_shell::auto_exclusive_zone_enable(&win);
+    win.set_default_size(1, config.height);
+    layer_shell::set_keyboard_interactivity(&win, false);
     if let Some(display) = gdk::Display::default() {
-        if let Some(monitor) = display.monitor(config.monitor) { layer_shell::set_monitor(&win, &monitor); }
+        if let Some(monitor) = display.monitor(config.monitor) {
+            layer_shell::set_monitor(&win, &monitor);
+        }
     }
-    let center = gtk::Overlay::new(); center.style_context().add_class("bar-root");
-    let left = hbox(7); left.style_context().add_class("bar-left"); let right = hbox(7); right.style_context().add_class("bar-right");
+    let center = gtk::Overlay::new();
+    center.style_context().add_class("bar-root");
+    let left = hbox(7);
+    left.style_context().add_class("bar-left");
+    let right = hbox(7);
+    right.style_context().add_class("bar-right");
 
-    let workspaces = hbox(3); let mut workspace_buttons = Vec::new();
-    for (id, glyph) in [(1,"α"),(2,"β"),(3,"γ"),(4,"δ")] {
-        let b = button("workspace"); b.set_label(glyph); b.set_tooltip_text(Some(&format!("Workspace {id}"))); b.connect_clicked(move |_| focus_workspace(id)); workspaces.pack_start(&b, false, false, 0); workspace_buttons.push(b);
+    let workspaces = hbox(3);
+    let mut workspace_buttons = Vec::new();
+    for (id, glyph) in [(1, "α"), (2, "β"), (3, "γ"), (4, "δ")] {
+        let b = button("workspace");
+        b.set_label(glyph);
+        b.set_tooltip_text(Some(&format!("Workspace {id}")));
+        b.connect_clicked(move |_| focus_workspace(id));
+        workspaces.pack_start(&b, false, false, 0);
+        workspace_buttons.push(b);
     }
     left.pack_start(&workspaces, false, false, 0);
-    let hardware_box = hbox(0); hardware_box.style_context().add_class("module"); let hardware = label("󰘚 --  󰍛 --  󰔏 --", "hardware"); hardware_box.pack_start(&hardware, false, false, 0); left.pack_start(&hardware_box, false, false, 0);
-    let idle = button("idle"); idle.set_label("󰌽"); idle.set_tooltip_text(Some("Idle inhibitor · click to toggle")); idle.connect_clicked(|_| run_command("/home/brine/.config/nixie-shell/bin/toggle-idle")); left.pack_start(&idle, false, false, 0);
+    let hardware_box = hbox(0);
+    hardware_box.style_context().add_class("module");
+    let hardware = label("󰘚 --  󰍛 --  󰔏 --", "hardware");
+    hardware_box.pack_start(&hardware, false, false, 0);
+    left.pack_start(&hardware_box, false, false, 0);
+    let idle = button("idle");
+    idle.set_label("󰌽");
+    idle.set_tooltip_text(Some("Idle inhibitor · click to toggle"));
+    let idle_updates = updates.clone();
+    idle.connect_clicked(move |_| {
+        run_command("/home/brine/.config/nixie-shell/bin/toggle-idle");
+        let tx = idle_updates.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(75));
+            let _ = tx.send(ModuleUpdate::Idle(telemetry::idle_inhibited()));
+        });
+    });
+    left.pack_start(&idle, false, false, 0);
 
-    let clock = button("clock"); let clock_box = hbox(7); let clock_time = label("--:--", "clock-time"); let clock_date = label("--.--", "clock-date"); clock_box.pack_start(&clock_time,false,false,0); clock_box.pack_start(&clock_date,false,false,0); clock.add(&clock_box);
-    let calendar = create_calendar(); let cal_ref = calendar.clone(); clock.connect_clicked(move |_| toggle_popup(&cal_ref));
+    let clock = button("clock");
+    let clock_box = hbox(7);
+    let clock_time = label("--:--", "clock-time");
+    let clock_date = label("--.--", "clock-date");
+    clock_box.pack_start(&clock_time, false, false, 0);
+    clock_box.pack_start(&clock_date, false, false, 0);
+    clock.add(&clock_box);
+    let calendar = create_calendar();
+    let cal_ref = calendar.clone();
+    clock.connect_clicked(move |_| toggle_popup(&cal_ref));
 
-    let input = button("input"); input.set_label("EN"); input.set_tooltip_text(Some("Input method")); input.connect_clicked(|_| telemetry::spawn("fcitx5-remote", &["-t"])); right.pack_start(&input,false,false,0);
-    let network = button("network"); let network_box = hbox(7); let network_icon = label("󰖪", "network-icon"); let network_name = label("Network", ""); network_box.pack_start(&network_icon,false,false,0); network_box.pack_start(&network_name,false,false,0); network.add(&network_box);
-    let net_cmd = config.commands.network.clone(); network.connect_clicked(move |_| run_command(&net_cmd)); let advanced = config.commands.network_advanced.clone(); network.connect_button_press_event(move |_, e| { if e.button() == 3 { run_command(&advanced); gtk::Inhibit(true) } else { gtk::Inhibit(false) } }); right.pack_start(&network,false,false,0);
-    let tray_box = hbox(2); tray_box.style_context().add_class("tray"); right.pack_start(&tray_box, false, false, 0);
-    tray::start(&tray_box, config.tray.blacklist.clone(), config.tray.pinned_first.clone());
-    let llm = button("llm"); llm.set_label("AI --"); let (llm_panel, llm_detail) = create_llm_panel(); let llm_ref = llm_panel.clone(); llm.connect_clicked(move |_| toggle_popup(&llm_ref)); right.pack_start(&llm,false,false,0);
-    let audio = button("audio"); audio.set_label("󰕾 --"); audio.connect_clicked(|_| telemetry::spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])); let mixer = config.commands.audio_mixer.clone(); audio.connect_button_press_event(move |_,e| { if e.button()==3 { run_command(&mixer); gtk::Inhibit(true) } else { gtk::Inhibit(false) } }); right.pack_start(&audio,false,false,0);
-    let power = button("power"); power.set_label("󰾅 󰁹 --"); power.connect_clicked(|_| run_command("/home/brine/.config/nixie-shell/bin/cycle-profile")); right.pack_start(&power,false,false,0);
-    let bluetooth = button("bluetooth"); bluetooth.set_label("󰂯"); let bt_cmd = config.commands.bluetooth.clone(); bluetooth.connect_clicked(move |_| run_command(&bt_cmd)); right.pack_start(&bluetooth,false,false,0);
-    let notifications = button("notifications"); notifications.set_label("󰂚"); let (notification_panel, _) = create_notification_panel(metadata, notifications.clone()); let nref = notification_panel.clone(); notifications.connect_clicked(move |_| toggle_popup(&nref)); notifications.connect_button_press_event(|_,e| { if e.button()==3 { telemetry::spawn("dunstctl", &["set-paused", "toggle"]); gtk::Inhibit(true) } else { gtk::Inhibit(false) } }); right.pack_start(&notifications,false,false,0);
+    let input = button("input");
+    input.set_label("EN");
+    input.set_tooltip_text(Some("Input method"));
+    input.connect_clicked(|_| telemetry::spawn("fcitx5-remote", &["-t"]));
+    right.pack_start(&input, false, false, 0);
+    let network = button("network");
+    let network_box = hbox(7);
+    let network_icon = label("󰖪", "network-icon");
+    let network_name = label("Network", "");
+    network_box.pack_start(&network_icon, false, false, 0);
+    network_box.pack_start(&network_name, false, false, 0);
+    network.add(&network_box);
+    let net_cmd = config.commands.network.clone();
+    network.connect_clicked(move |_| run_command(&net_cmd));
+    let advanced = config.commands.network_advanced.clone();
+    network.connect_button_press_event(move |_, e| {
+        if e.button() == 3 {
+            run_command(&advanced);
+            gtk::Inhibit(true)
+        } else {
+            gtk::Inhibit(false)
+        }
+    });
+    right.pack_start(&network, false, false, 0);
+    let tray_box = hbox(2);
+    tray_box.style_context().add_class("tray");
+    right.pack_start(&tray_box, false, false, 0);
+    tray::start(
+        &tray_box,
+        config.tray.blacklist.clone(),
+        config.tray.pinned_first.clone(),
+    );
+    let llm = button("llm");
+    llm.set_label("AI --");
+    let (llm_panel, llm_detail) = create_llm_panel();
+    let llm_ref = llm_panel.clone();
+    llm.connect_clicked(move |_| toggle_popup(&llm_ref));
+    right.pack_start(&llm, false, false, 0);
+    let audio = button("audio");
+    audio.set_label("󰕾 --");
+    audio.connect_clicked(|_| {
+        telemetry::spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
+    });
+    let mixer = config.commands.audio_mixer.clone();
+    audio.connect_button_press_event(move |_, e| {
+        if e.button() == 3 {
+            run_command(&mixer);
+            gtk::Inhibit(true)
+        } else {
+            gtk::Inhibit(false)
+        }
+    });
+    right.pack_start(&audio, false, false, 0);
+    let power = button("power");
+    power.set_label("󰾅 󰁹 --");
+    power.connect_clicked(|_| events::cycle_power_profile());
+    right.pack_start(&power, false, false, 0);
+    let bluetooth = button("bluetooth");
+    bluetooth.set_label("󰂯");
+    let bt_cmd = config.commands.bluetooth.clone();
+    bluetooth.connect_clicked(move |_| run_command(&bt_cmd));
+    right.pack_start(&bluetooth, false, false, 0);
+    let notifications = button("notifications");
+    notifications.set_label("󰂚");
+    let (notification_panel, _) =
+        create_notification_panel(metadata, notifications.clone(), updates.clone());
+    let nref = notification_panel.clone();
+    notifications.connect_clicked(move |_| toggle_popup(&nref));
+    let notification_updates = updates.clone();
+    notifications.connect_button_press_event(move |_, e| {
+        if e.button() == 3 {
+            telemetry::spawn("dunstctl", &["set-paused", "toggle"]);
+            refresh_notifications_after(notification_updates.clone(), 75);
+            gtk::Inhibit(true)
+        } else {
+            gtk::Inhibit(false)
+        }
+    });
+    right.pack_start(&notifications, false, false, 0);
 
-    left.set_hexpand(true); right.set_hexpand(false); right.set_halign(gtk::Align::End);
-    let base=hbox(0); base.pack_start(&left,true,true,0); base.pack_end(&right,false,false,0); center.add(&base);
-    clock.set_halign(gtk::Align::Center); clock.set_valign(gtk::Align::Center); center.add_overlay(&clock); win.add(&center);
-    (win, Ui { workspace_buttons, hardware, clock_time, clock_date, input, network, network_icon, network_name, llm, llm_detail, audio, power, bluetooth, notifications })
+    left.set_hexpand(true);
+    right.set_hexpand(false);
+    right.set_halign(gtk::Align::End);
+    let base = hbox(0);
+    base.pack_start(&left, true, true, 0);
+    base.pack_end(&right, false, false, 0);
+    center.add(&base);
+    clock.set_halign(gtk::Align::Center);
+    clock.set_valign(gtk::Align::Center);
+    center.add_overlay(&clock);
+    win.add(&center);
+    (
+        win,
+        Ui {
+            workspace_buttons,
+            hardware,
+            clock_time,
+            clock_date,
+            input,
+            network,
+            network_icon,
+            network_name,
+            llm,
+            llm_detail,
+            audio,
+            power,
+            idle,
+            bluetooth,
+            notifications,
+        },
+    )
 }
 
-fn update_ui(ui: &Ui, s: &Snapshot) {
-    for (idx, b) in ui.workspace_buttons.iter().enumerate() { if s.workspace == (idx+1) as i32 { b.style_context().add_class("active"); } else { b.style_context().remove_class("active"); } }
-    ui.hardware.set_text(&format!("󰘚 {}%  󰍛 {}%  󰔏 {}°", s.cpu, s.mem, s.temp));
-    let now = Local::now(); ui.clock_time.set_text(&now.format("%H:%M").to_string()); ui.clock_date.set_text(&now.format("%m.%d").to_string());
-    ui.network_icon.set_text(&s.network_icon); ui.network_name.set_text(&s.network_name); ui.network.set_tooltip_text(Some(&s.network_tooltip));
-    ui.llm.set_label(&if s.codex_remaining >= 0 { format!("AI {}%{}", s.codex_remaining, if s.active_llms > 0 { format!(" •{}",s.active_llms) } else { String::new() }) } else { "AI --".into() });
-    ui.llm.set_tooltip_text(Some(&format!("Codex quota left: {}%\nResets: {}\nActive clients: {}", s.codex_remaining.max(0), s.codex_reset, s.active_llms)));
-    ui.llm_detail.set_text(&format!("Codex quota left: {}%\nResets: {}\nTokens today: {}\nActive clients: {}", s.codex_remaining.max(0), s.codex_reset, s.codex_today, s.active_llms));
-    ui.audio.set_label(&if s.muted { "󰖁".into() } else { format!("{} {}%", if s.volume>=60 {"󰕾"} else if s.volume>=20 {"󰖀"} else {"󰕿"}, s.volume) }); ui.audio.set_tooltip_text(Some(&if s.muted { "Muted · right-click for mixer".into() } else { format!("Volume {}% · right-click for mixer",s.volume) }));
-    let bat_icon = if s.battery>=90 {"󰁹"} else if s.battery>=70 {"󰂀"} else if s.battery>=40 {"󰁾"} else if s.battery>=20 {"󰁼"} else {"󰂎"}; let profile_icon = if s.profile=="power-saver" {"󰌪"} else if s.profile=="performance" {"󰓅"} else {"󰾅"}; ui.power.set_label(&format!("{} {} {}%",profile_icon,bat_icon,s.battery)); ui.power.set_tooltip_text(Some(&format!("Battery: {}% · {}\nPower mode: {}\nClick to cycle",s.battery,s.battery_status,s.profile)));
-    ui.bluetooth.set_label(&if s.bluetooth_count>0 { format!("󰂱 {}",s.bluetooth_count) } else if s.bluetooth_powered {"󰂯".into()} else {"󰂲".into()}); ui.bluetooth.set_tooltip_text(Some(&if !s.bluetooth_powered {"Bluetooth is off".into()} else if s.bluetooth_names.is_empty() {"Bluetooth on · no connected devices".into()} else {format!("Bluetooth · {} connected\n{}",s.bluetooth_count,s.bluetooth_names.join("\n"))}));
-    ui.notifications.set_label(&if s.dnd {"󰂛".into()} else if s.notifications>0 {format!("󱅫 {}",s.notifications)} else {"󰂚".into()}); ui.notifications.set_tooltip_text(Some(&if s.dnd {"Do not disturb · right-click to disable".into()} else {format!("{} notifications · right-click for DND",s.notifications)}));
-    if s.dnd { ui.notifications.style_context().add_class("paused"); } else { ui.notifications.style_context().remove_class("paused"); }
-    if !s.dnd && s.notifications>0 { ui.notifications.style_context().add_class("unread"); } else { ui.notifications.style_context().remove_class("unread"); }
+fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
+    if matches!(update, ModuleUpdate::Workspace(_)) {
+        for (idx, b) in ui.workspace_buttons.iter().enumerate() {
+            if s.workspace == (idx + 1) as i32 {
+                b.style_context().add_class("active");
+            } else {
+                b.style_context().remove_class("active");
+            }
+        }
+    }
+    if matches!(update, ModuleUpdate::Metrics { .. }) {
+        ui.hardware
+            .set_text(&format!("󰘚 {}%  󰍛 {}%  󰔏 {}°", s.cpu, s.mem, s.temp));
+    }
+    if matches!(update, ModuleUpdate::Network { .. }) {
+        ui.network_icon.set_text(&s.network_icon);
+        ui.network_name.set_text(&s.network_name);
+        ui.network.set_tooltip_text(Some(&s.network_tooltip));
+    }
+    if matches!(update, ModuleUpdate::Llm { .. }) {
+        ui.llm.set_label(&if s.codex_remaining >= 0 {
+            format!(
+                "AI {}%{}",
+                s.codex_remaining,
+                if s.active_llms > 0 {
+                    format!(" •{}", s.active_llms)
+                } else {
+                    String::new()
+                }
+            )
+        } else {
+            "AI --".into()
+        });
+        ui.llm.set_tooltip_text(Some(&format!(
+            "Codex quota left: {}%\nResets: {}\nActive clients: {}",
+            s.codex_remaining.max(0),
+            s.codex_reset,
+            s.active_llms
+        )));
+        ui.llm_detail.set_text(&format!(
+            "Codex quota left: {}%\nResets: {}\nTokens today: {}\nActive clients: {}",
+            s.codex_remaining.max(0),
+            s.codex_reset,
+            s.codex_today,
+            s.active_llms
+        ));
+    }
+    if matches!(update, ModuleUpdate::Audio { .. }) {
+        ui.audio.set_label(&if s.muted {
+            "󰖁".into()
+        } else {
+            format!(
+                "{} {}%",
+                if s.volume >= 60 {
+                    "󰕾"
+                } else if s.volume >= 20 {
+                    "󰖀"
+                } else {
+                    "󰕿"
+                },
+                s.volume
+            )
+        });
+        ui.audio.set_tooltip_text(Some(&if s.muted {
+            "Muted · right-click for mixer".into()
+        } else {
+            format!("Volume {}% · right-click for mixer", s.volume)
+        }));
+    }
+    if matches!(
+        update,
+        ModuleUpdate::Battery { .. } | ModuleUpdate::Profile(_)
+    ) {
+        let bat_icon = if s.battery >= 90 {
+            "󰁹"
+        } else if s.battery >= 70 {
+            "󰂀"
+        } else if s.battery >= 40 {
+            "󰁾"
+        } else if s.battery >= 20 {
+            "󰁼"
+        } else {
+            "󰂎"
+        };
+        let profile_icon = if s.profile == "power-saver" {
+            "󰌪"
+        } else if s.profile == "performance" {
+            "󰓅"
+        } else {
+            "󰾅"
+        };
+        ui.power
+            .set_label(&format!("{} {} {}%", profile_icon, bat_icon, s.battery));
+        ui.power.set_tooltip_text(Some(&format!(
+            "Battery: {}% · {}\nPower mode: {}\nClick to cycle",
+            s.battery, s.battery_status, s.profile
+        )));
+    }
+    if matches!(update, ModuleUpdate::Idle(_)) {
+        if s.idle_inhibited {
+            ui.idle.set_label("󰅶");
+            ui.idle
+                .set_tooltip_text(Some("Idle inhibition active · click to allow sleep"));
+            ui.idle.style_context().add_class("active");
+        } else {
+            ui.idle.set_label("󰌽");
+            ui.idle
+                .set_tooltip_text(Some("Idle inhibition inactive · click to keep awake"));
+            ui.idle.style_context().remove_class("active");
+        }
+    }
+    if matches!(update, ModuleUpdate::Bluetooth { .. }) {
+        ui.bluetooth.set_label(&if s.bluetooth_count > 0 {
+            format!("󰂱 {}", s.bluetooth_count)
+        } else if s.bluetooth_powered {
+            "󰂯".into()
+        } else {
+            "󰂲".into()
+        });
+        ui.bluetooth
+            .set_tooltip_text(Some(&if !s.bluetooth_powered {
+                "Bluetooth is off".into()
+            } else if s.bluetooth_names.is_empty() {
+                "Bluetooth on · no connected devices".into()
+            } else {
+                format!(
+                    "Bluetooth · {} connected\n{}",
+                    s.bluetooth_count,
+                    s.bluetooth_names.join("\n")
+                )
+            }));
+    }
+    if matches!(update, ModuleUpdate::Notifications { .. }) {
+        ui.notifications.set_label(&if s.dnd {
+            "󰂛".into()
+        } else if s.notifications > 0 {
+            format!("󱅫 {}", s.notifications)
+        } else {
+            "󰂚".into()
+        });
+        ui.notifications.set_tooltip_text(Some(&if s.dnd {
+            "Do not disturb · right-click to disable".into()
+        } else {
+            format!("{} notifications · right-click for DND", s.notifications)
+        }));
+        if s.dnd {
+            ui.notifications.style_context().add_class("paused");
+        } else {
+            ui.notifications.style_context().remove_class("paused");
+        }
+        if !s.dnd && s.notifications > 0 {
+            ui.notifications.style_context().add_class("unread");
+        } else {
+            ui.notifications.style_context().remove_class("unread");
+        }
+    }
+}
+
+fn schedule_clock(ui: Ui) {
+    let now = Local::now();
+    ui.clock_time.set_text(&now.format("%H:%M").to_string());
+    ui.clock_date.set_text(&now.format("%m.%d").to_string());
+    let delay = Duration::from_secs((60 - now.second() as u64).max(1));
+    glib::timeout_add_local_once(delay, move || schedule_clock(ui));
 }
 
 fn load_config(path: &Path) -> Result<Config> {
-    toml::from_str(&fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?).context("parse config")
+    toml::from_str(&fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?)
+        .context("parse config")
 }
 
 fn main() -> Result<()> {
     simple_logger::init_with_level(log::Level::Info).ok();
-    let async_runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().context("initialize async runtime")?;
+    let async_runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .context("initialize async runtime")?;
     let _async_guard = async_runtime.enter();
     gtk::init().context("initialize GTK")?;
-    let args: Vec<String> = std::env::args().collect(); let path = args.windows(2).find(|x| x[0]=="--config").map(|x| PathBuf::from(&x[1])).unwrap_or_else(|| dirs::config_dir().unwrap().join("nixie-shell/config.toml")); let config = load_config(&path)?;
-    let css_path = path.parent().unwrap().join("style.css"); let css = gtk::CssProvider::new(); css.load_from_path(css_path.to_str().context("CSS path")?).context("load CSS")?; gtk::StyleContext::add_provider_for_screen(&gdk::Screen::default().context("display screen")?, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
-    let metadata = Rc::new(RefCell::new(VecDeque::<NotificationMeta>::with_capacity(100)));
-    let (meta_tx, meta_rx) = glib::MainContext::channel(glib::Priority::default()); monitor_notifications(meta_tx);
-    let (input_tx, input_rx) = glib::MainContext::channel(glib::Priority::default()); monitor_input(input_tx);
-    let (snap_tx, snap_rx) = glib::MainContext::channel(glib::Priority::default()); let refresh = config.refresh.clone();
-    thread::spawn(move || { let mut sample = telemetry::cpu_sample(); let mut state = Snapshot::default(); let mut elapsed=0u64; loop { let services = elapsed % refresh.services_seconds.max(1) == 0; let llm = elapsed % refresh.llm_seconds.max(1) == 0; let (next,new_sample)=telemetry::collect(&sample,services,llm,&state); sample=new_sample; state=next.clone(); if snap_tx.send(next).is_err(){break} thread::sleep(Duration::from_secs(refresh.hardware_seconds.max(1))); elapsed=elapsed.saturating_add(refresh.hardware_seconds.max(1)); } });
-    let (win, ui) = build_bar(&config, metadata.clone());
+    let args: Vec<String> = std::env::args().collect();
+    let path = args
+        .windows(2)
+        .find(|x| x[0] == "--config")
+        .map(|x| PathBuf::from(&x[1]))
+        .unwrap_or_else(|| dirs::config_dir().unwrap().join("nixie-shell/config.toml"));
+    let config = load_config(&path)?;
+    let css_path = path.parent().unwrap().join("style.css");
+    let css = gtk::CssProvider::new();
+    css.load_from_path(css_path.to_str().context("CSS path")?)
+        .context("load CSS")?;
+    gtk::StyleContext::add_provider_for_screen(
+        &gdk::Screen::default().context("display screen")?,
+        &css,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+    let metadata = Rc::new(RefCell::new(VecDeque::<NotificationMeta>::with_capacity(
+        100,
+    )));
+    let state = Rc::new(RefCell::new(Snapshot::default()));
+    let (update_tx, update_rx) = glib::MainContext::channel(glib::Priority::default());
+    let (meta_tx, meta_rx) = glib::MainContext::channel(glib::Priority::default());
+    let (input_tx, input_rx) = glib::MainContext::channel(glib::Priority::default());
+    monitor_input(input_tx);
+    let (win, ui) = build_bar(&config, metadata.clone(), update_tx.clone());
     let (candidate_win, candidate_root) = create_candidate_window();
-    let meta_ref=metadata.clone(); let meta_ui=ui.clone();
-    meta_rx.attach(None,move |meta| { let mut values=meta_ref.borrow_mut(); values.push_back(meta); while values.len()>100{values.pop_front();} meta_ui.notifications.set_label("󱅫"); meta_ui.notifications.style_context().add_class("unread"); meta_ui.notifications.set_tooltip_text(Some("New notification · click for notification center")); glib::Continue(true) });
-    let input_ui=ui.clone();
-    input_rx.attach(None,move |value| { match value { FcitxMessage::Status{active,name,label} => { input_ui.input.set_label(&label); input_ui.input.set_tooltip_text(Some(&format!("Input method: {}{}", name, if active { "" } else { " (direct)" }))); }, candidates @ FcitxMessage::Candidates{..} => update_candidates(&candidate_win,&candidate_root,candidates) }; glib::Continue(true) });
-    let snap_ui=ui.clone(); snap_rx.attach(None,move |value| { update_ui(&snap_ui,&value); glib::Continue(true) });
-    win.connect_destroy(|_| gtk::main_quit()); win.show_all(); gtk::main(); Ok(())
+    let meta_ref = metadata.clone();
+    let meta_ui = ui.clone();
+    meta_rx.attach(None, move |meta| {
+        let mut values = meta_ref.borrow_mut();
+        values.push_back(meta);
+        while values.len() > 100 {
+            values.pop_front();
+        }
+        meta_ui.notifications.set_label("󱅫");
+        meta_ui.notifications.style_context().add_class("unread");
+        meta_ui
+            .notifications
+            .set_tooltip_text(Some("New notification · click for notification center"));
+        glib::Continue(true)
+    });
+    let input_ui = ui.clone();
+    input_rx.attach(None, move |value| {
+        match value {
+            FcitxMessage::Status {
+                active,
+                name,
+                label,
+            } => {
+                input_ui.input.set_label(&label);
+                input_ui.input.set_tooltip_text(Some(&format!(
+                    "Input method: {}{}",
+                    name,
+                    if active { "" } else { " (direct)" }
+                )));
+            }
+            candidates @ FcitxMessage::Candidates { .. } => {
+                update_candidates(&candidate_win, &candidate_root, candidates)
+            }
+        };
+        glib::Continue(true)
+    });
+    let update_ui_ref = ui.clone();
+    let update_state = state.clone();
+    update_rx.attach(None, move |value| {
+        let mut current = update_state.borrow_mut();
+        let render = value.clone();
+        value.apply(&mut current);
+        update_ui(&update_ui_ref, &current, &render);
+        glib::Continue(true)
+    });
+    schedule_clock(ui.clone());
+    monitor_notifications(meta_tx, update_tx.clone(), state);
+    events::start_workspace(update_tx.clone());
+    events::start_audio(update_tx.clone());
+    events::start_metrics(update_tx.clone(), config.refresh.metrics_seconds);
+    events::start_llm(update_tx.clone(), config.refresh.llm_seconds);
+    events::start_reconcile(update_tx.clone(), config.refresh.reconcile_seconds);
+    events::start_dbus(update_tx, config.refresh.event_coalesce_ms);
+    win.connect_destroy(|_| gtk::main_quit());
+    win.show_all();
+    gtk::main();
+    Ok(())
 }

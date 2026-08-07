@@ -31,6 +31,7 @@ button.module, .module {
   background: alpha(@surface, 0.94);
   color: @text;
   box-shadow: none;
+  transition: none;
 }
 
 button.module:hover {

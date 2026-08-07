@@ -6,6 +6,8 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 ## What is included
 
 - A GTK3/Rust layer-shell status bar with native tooltips and StatusNotifier tray.
+- Event-driven workspace, audio, power, battery, network, Bluetooth, and
+  notification updates; only hardware metrics and quota data use timers.
 - Network, Bluetooth, audio, battery/power-profile, idle inhibitor, workspace,
   notification-center, and local Codex-quota modules.
 - Event-driven Fcitx status plus a custom candidate UI. Candidates stay in a
@@ -18,7 +20,7 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 ## Runtime dependencies
 
 Hyprland 0.55+, Rust/Cargo, a C/C++ compiler, `pkgconf`, GTK3,
-`gtk-layer-shell`, NetworkManager/libnm, WirePlumber (`wpctl`), Fcitx 5 core
+`gtk-layer-shell`, libpulse, NetworkManager/libnm, WirePlumber (`wpctl`), Fcitx 5 core
 development headers, Dunst, Rofi 2, Blueberry, `powerprofilesctl`, and `jq`.
 
 ## Install

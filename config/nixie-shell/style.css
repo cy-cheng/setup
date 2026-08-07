@@ -41,7 +41,7 @@ button.module:hover {
 }
 
 .workspace { min-width: 27px; min-height: 38px; padding: 0; color: @muted; }
-.workspace label { padding: 0; font-size: 30px; }
+.workspace label { padding: 0; font-size: 20pt; }
 .workspace.active { background: @amber; color: @bg; }
 .hardware { color: @muted; font-size: 12px; }
 .clock-time { color: @amber; font-weight: 700; font-size: 15px; }

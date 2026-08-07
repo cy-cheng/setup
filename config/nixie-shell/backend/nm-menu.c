@@ -385,9 +385,12 @@ int main(int argc, char **argv) {
     gtk_layer_set_namespace(GTK_WINDOW(window), "nixie-network-menu");
     gtk_layer_set_layer(GTK_WINDOW(window), GTK_LAYER_SHELL_LAYER_OVERLAY);
     gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-    gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
-    gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, 50);
-    gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, 12);
+    gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+    gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, 4);
+    const char *left_value = getenv("NIXIE_POPUP_LEFT");
+    int left_margin = left_value != NULL ? atoi(left_value) : 12;
+    gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,
+                         left_margin > 0 ? left_margin : 12);
     gtk_layer_set_keyboard_mode(GTK_WINDOW(window),
                                 GTK_LAYER_SHELL_KEYBOARD_MODE_ON_DEMAND);
     g_signal_connect(window, "key-press-event", G_CALLBACK(key_pressed), NULL);

@@ -123,6 +123,36 @@ struct Ui {
     notifications: gtk::Button,
 }
 
+#[derive(Clone, Default)]
+struct PopupManager {
+    active: Rc<RefCell<Option<gtk::Window>>>,
+}
+
+impl PopupManager {
+    fn hide_internal(&self) {
+        if let Some(active) = self.active.borrow_mut().take() {
+            active.hide();
+        }
+    }
+
+    fn dismiss(&self) {
+        self.hide_internal();
+        telemetry::spawn("pkill", &["-x", "nm-menu"]);
+    }
+
+    fn toggle(&self, popup: &gtk::Window, anchor: &gtk::Button, bar: &gtk::Window, width: i32) {
+        let was_visible = popup.is_visible();
+        self.dismiss();
+        if was_visible {
+            return;
+        }
+
+        position_popup(popup, anchor, bar, width);
+        popup.show_all();
+        self.active.borrow_mut().replace(popup.clone());
+    }
+}
+
 fn shell_words(command: &str) -> (String, Vec<String>) {
     let mut parts = command.split_whitespace();
     (
@@ -138,6 +168,20 @@ fn run_command(command: &str) {
     }
     let _ = Command::new(program)
         .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+}
+
+fn run_positioned_command(command: &str, left: i32) {
+    let (program, args) = shell_words(command);
+    if program.is_empty() {
+        return;
+    }
+    let _ = Command::new(program)
+        .args(args)
+        .env("NIXIE_POPUP_LEFT", left.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -173,7 +217,7 @@ fn vbox(spacing: i32) -> gtk::Box {
     gtk::Box::new(gtk::Orientation::Vertical, spacing)
 }
 
-fn popup(name: &str, width: i32, height: i32, right: i32) -> gtk::Window {
+fn popup(name: &str, width: i32, height: i32) -> gtk::Window {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
     win.set_widget_name(name);
     win.style_context().add_class("nixie-popover");
@@ -182,9 +226,9 @@ fn popup(name: &str, width: i32, height: i32, right: i32) -> gtk::Window {
     layer_shell::set_namespace(&win, name);
     layer_shell::set_layer(&win, Layer::Overlay);
     layer_shell::set_anchor(&win, Edge::Top, true);
-    layer_shell::set_anchor(&win, Edge::Right, true);
-    layer_shell::set_margin(&win, Edge::Top, 50);
-    layer_shell::set_margin(&win, Edge::Right, right);
+    layer_shell::set_anchor(&win, Edge::Left, true);
+    layer_shell::set_margin(&win, Edge::Top, 4);
+    layer_shell::set_margin(&win, Edge::Left, 8);
     layer_shell::set_keyboard_interactivity(&win, false);
     win.connect_delete_event(|w, _| {
         w.hide();
@@ -193,16 +237,26 @@ fn popup(name: &str, width: i32, height: i32, right: i32) -> gtk::Window {
     win
 }
 
-fn toggle_popup(win: &gtk::Window) {
-    if win.is_visible() {
-        win.hide();
-    } else {
-        win.show_all();
+fn popup_left(anchor: &gtk::Button, bar: &gtk::Window, width: i32) -> i32 {
+    let x = anchor
+        .translate_coordinates(bar, 0, 0)
+        .map(|(x, _)| x)
+        .unwrap_or(8);
+    let centered = x + anchor.allocated_width() / 2 - width / 2;
+    centered.clamp(8, (bar.allocated_width() - width - 8).max(8))
+}
+
+fn position_popup(popup: &gtk::Window, anchor: &gtk::Button, bar: &gtk::Window, width: i32) {
+    if let (Some(display), Some(surface)) = (gdk::Display::default(), bar.window()) {
+        if let Some(monitor) = display.monitor_at_window(&surface) {
+            layer_shell::set_monitor(popup, &monitor);
+        }
     }
+    layer_shell::set_margin(popup, Edge::Left, popup_left(anchor, bar, width));
 }
 
 fn create_calendar() -> gtk::Window {
-    let win = popup("nixie-calendar", 330, 280, 12);
+    let win = popup("nixie-calendar", 330, 280);
     let root = vbox(10);
     root.style_context().add_class("panel");
     root.pack_start(&label("Calendar", "panel-title"), false, false, 0);
@@ -299,7 +353,7 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
 }
 
 fn create_llm_panel() -> (gtk::Window, gtk::Label) {
-    let win = popup("nixie-llm", 370, 250, 12);
+    let win = popup("nixie-llm", 370, 250);
     let root = vbox(12);
     root.style_context().add_class("panel");
     root.pack_start(&label("Local AI usage", "panel-title"), false, false, 0);
@@ -340,7 +394,7 @@ fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<Not
             let body = label(&item.body, "muted");
             body.set_xalign(0.0);
             body.set_line_wrap(true);
-            body.set_max_width_chars(48);
+            body.set_max_width_chars(62);
             content.pack_start(&body, false, false, 0);
         }
         row.add(&content);
@@ -381,7 +435,7 @@ fn create_notification_panel(
     indicator: gtk::Button,
     updates: glib::Sender<ModuleUpdate>,
 ) -> (gtk::Window, gtk::Box) {
-    let win = popup("nixie-notifications", 430, 540, 12);
+    let win = popup("nixie-notifications", 560, 820);
     let root = vbox(10);
     root.style_context().add_class("panel");
     let title = hbox(8);
@@ -545,6 +599,7 @@ fn build_bar(
     left.style_context().add_class("bar-left");
     let right = hbox(7);
     right.style_context().add_class("bar-right");
+    let popups = PopupManager::default();
 
     let workspaces = hbox(3);
     let mut workspace_buttons = Vec::new();
@@ -552,11 +607,14 @@ fn build_bar(
         let b = button("workspace");
         b.set_label(glyph);
         b.set_tooltip_text(Some(&format!("Workspace {id}")));
-        b.connect_clicked(move |_| focus_workspace(id));
+        let workspace_popups = popups.clone();
+        b.connect_clicked(move |_| {
+            workspace_popups.dismiss();
+            focus_workspace(id);
+        });
         workspaces.pack_start(&b, false, false, 0);
         workspace_buttons.push(b);
     }
-    left.pack_start(&workspaces, false, false, 0);
     let hardware_box = hbox(0);
     hardware_box.style_context().add_class("module");
     let hardware = label("󰘚 --  󰍛 --  󰔏 --", "hardware");
@@ -566,7 +624,9 @@ fn build_bar(
     idle.set_label("󰌽");
     idle.set_tooltip_text(Some("Idle inhibitor · click to toggle"));
     let idle_updates = updates.clone();
+    let idle_popups = popups.clone();
     idle.connect_clicked(move |_| {
+        idle_popups.dismiss();
         run_command("/home/brine/.config/nixie-shell/bin/toggle-idle");
         let tx = idle_updates.clone();
         thread::spawn(move || {
@@ -575,6 +635,7 @@ fn build_bar(
         });
     });
     left.pack_start(&idle, false, false, 0);
+    left.pack_start(&workspaces, false, false, 0);
 
     let clock = button("clock");
     let clock_box = hbox(7);
@@ -585,12 +646,18 @@ fn build_bar(
     clock.add(&clock_box);
     let calendar = create_calendar();
     let cal_ref = calendar.clone();
-    clock.connect_clicked(move |_| toggle_popup(&cal_ref));
+    let cal_bar = win.clone();
+    let cal_popups = popups.clone();
+    clock.connect_clicked(move |button| cal_popups.toggle(&cal_ref, button, &cal_bar, 330));
 
     let input = button("input");
     input.set_label("EN");
     input.set_tooltip_text(Some("Input method"));
-    input.connect_clicked(|_| telemetry::spawn("fcitx5-remote", &["-t"]));
+    let input_popups = popups.clone();
+    input.connect_clicked(move |_| {
+        input_popups.dismiss();
+        telemetry::spawn("fcitx5-remote", &["-t"]);
+    });
     right.pack_start(&input, false, false, 0);
     let network = button("network");
     let network_box = hbox(7);
@@ -600,10 +667,17 @@ fn build_bar(
     network_box.pack_start(&network_name, false, false, 0);
     network.add(&network_box);
     let net_cmd = config.commands.network.clone();
-    network.connect_clicked(move |_| run_command(&net_cmd));
+    let net_bar = win.clone();
+    let net_popups = popups.clone();
+    network.connect_clicked(move |button| {
+        net_popups.hide_internal();
+        run_positioned_command(&net_cmd, popup_left(button, &net_bar, 360));
+    });
     let advanced = config.commands.network_advanced.clone();
+    let advanced_popups = popups.clone();
     network.connect_button_press_event(move |_, e| {
         if e.button() == 3 {
+            advanced_popups.dismiss();
             run_command(&advanced);
             gtk::Inhibit(true)
         } else {
@@ -623,16 +697,22 @@ fn build_bar(
     llm.set_label("AI --");
     let (llm_panel, llm_detail) = create_llm_panel();
     let llm_ref = llm_panel.clone();
-    llm.connect_clicked(move |_| toggle_popup(&llm_ref));
+    let llm_bar = win.clone();
+    let llm_popups = popups.clone();
+    llm.connect_clicked(move |button| llm_popups.toggle(&llm_ref, button, &llm_bar, 370));
     right.pack_start(&llm, false, false, 0);
     let audio = button("audio");
     audio.set_label("󰕾 --");
-    audio.connect_clicked(|_| {
-        telemetry::spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
+    let audio_popups = popups.clone();
+    audio.connect_clicked(move |_| {
+        audio_popups.dismiss();
+        telemetry::spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
     });
     let mixer = config.commands.audio_mixer.clone();
+    let mixer_popups = popups.clone();
     audio.connect_button_press_event(move |_, e| {
         if e.button() == 3 {
+            mixer_popups.dismiss();
             run_command(&mixer);
             gtk::Inhibit(true)
         } else {
@@ -642,19 +722,31 @@ fn build_bar(
     right.pack_start(&audio, false, false, 0);
     let power = button("power");
     power.set_label("󰾅 󰁹 --");
-    power.connect_clicked(|_| events::cycle_power_profile());
+    let power_popups = popups.clone();
+    power.connect_clicked(move |_| {
+        power_popups.dismiss();
+        events::cycle_power_profile();
+    });
     right.pack_start(&power, false, false, 0);
     let bluetooth = button("bluetooth");
     bluetooth.set_label("󰂯");
     let bt_cmd = config.commands.bluetooth.clone();
-    bluetooth.connect_clicked(move |_| run_command(&bt_cmd));
+    let bluetooth_popups = popups.clone();
+    bluetooth.connect_clicked(move |_| {
+        bluetooth_popups.dismiss();
+        run_command(&bt_cmd);
+    });
     right.pack_start(&bluetooth, false, false, 0);
     let notifications = button("notifications");
     notifications.set_label("󰂚");
     let (notification_panel, _) =
         create_notification_panel(metadata, notifications.clone(), updates.clone());
     let nref = notification_panel.clone();
-    notifications.connect_clicked(move |_| toggle_popup(&nref));
+    let notification_bar = win.clone();
+    let notification_popups = popups.clone();
+    notifications.connect_clicked(move |button| {
+        notification_popups.toggle(&nref, button, &notification_bar, 560)
+    });
     let notification_updates = updates.clone();
     notifications.connect_button_press_event(move |_, e| {
         if e.button() == 3 {

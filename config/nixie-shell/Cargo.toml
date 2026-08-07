@@ -1,0 +1,23 @@
+[package]
+name = "nixie-shell"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+dirs = "6"
+futures = "0.3"
+gio = "0.17"
+glib = "0.17"
+gtk = "0.17"
+gtk-layer-shell = "0.6.1"
+libc = "0.2"
+log = "0.4"
+notifier_host = { git = "https://github.com/elkowar/eww.git", rev = "d87c2fdbfdc012e76d229e4e9ea3325bc0f23e89", package = "notifier_host" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+simple_logger = "5"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
+toml = "0.9"
+zbus = { version = "3.15", default-features = false, features = ["tokio"] }

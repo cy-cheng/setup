@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if hyprctl clients -j | jq -e '.[] | select((.class | ascii_downcase) == "discord")' >/dev/null; then
+    hyprctl dispatch 'hl.dsp.focus({ window = "class:discord" })' >/dev/null
+else
+    runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    setsid --fork /usr/bin/discord </dev/null >>"$runtime_dir/nixie-discord.log" 2>&1
+fi

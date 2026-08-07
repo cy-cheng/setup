@@ -1,0 +1,32 @@
+* {
+    background: #070605f4;
+    surface: #12100dfa;
+    raised: #1c1711ff;
+    border: #44301eff;
+    amber: #ffac32ff;
+    text: #e8ded1ff;
+    muted: #918477ff;
+    spacing: 8px;
+}
+
+window {
+    width: 44%;
+    border: 1px;
+    border-color: @amber;
+    border-radius: 12px;
+    background-color: @background;
+    padding: 16px;
+}
+
+mainbox { children: [ inputbar, message, listview ]; background-color: transparent; }
+inputbar { children: [ prompt, entry ]; padding: 10px 12px; border-radius: 8px; background-color: @surface; }
+prompt { text-color: @amber; padding: 0 10px 0 0; }
+entry { text-color: @text; placeholder: "Search applications…"; placeholder-color: @muted; }
+message { padding: 8px; text-color: @muted; }
+listview { lines: 8; columns: 1; fixed-height: false; scrollbar: false; margin: 8px 0 0; }
+element { padding: 9px 10px; border-radius: 8px; background-color: transparent; text-color: @text; }
+element normal.normal { background-color: transparent; text-color: @text; }
+element alternate.normal { background-color: transparent; text-color: @text; }
+element selected.normal { background-color: @amber; text-color: @background; }
+element-icon { size: 24px; margin: 0 10px 0 0; }
+element-text { vertical-align: 0.5; background-color: inherit; text-color: inherit; }

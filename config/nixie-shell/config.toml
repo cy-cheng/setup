@@ -1,0 +1,17 @@
+monitor = 0
+height = 42
+
+[commands]
+network = "/home/brine/.config/nixie-shell/bin/open-network-menu"
+network_advanced = "nm-connection-editor"
+bluetooth = "/usr/bin/blueberry"
+audio_mixer = "pavucontrol"
+
+[tray]
+blacklist = ["networkmanager", "nm-applet", "nm_applet", "fcitx", "input method"]
+pinned_first = ["discord"]
+
+[refresh]
+hardware_seconds = 3
+services_seconds = 15
+llm_seconds = 60

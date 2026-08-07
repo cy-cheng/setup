@@ -352,6 +352,7 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
             let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
             value.set_xalign(0.0);
             value.set_hexpand(true);
+            value.set_width_chars(14);
             value.set_max_width_chars(18);
             value.set_ellipsize(gtk::pango::EllipsizeMode::End);
             if index as i32 == cursor {
@@ -376,6 +377,7 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
         let row = hbox(4);
         for (index, item) in items.iter().take(7).enumerate() {
             let value = label(&format!("{} {}", item.label, item.text), "candidate-item");
+            value.set_width_chars(10);
             value.set_max_width_chars(14);
             value.set_ellipsize(gtk::pango::EllipsizeMode::End);
             if index as i32 == cursor {
@@ -392,12 +394,22 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
     let divisor = scale.max(1.0);
     let cursor_x = (x as f64 / divisor).round() as i32;
     let cursor_y = (y as f64 / divisor).round() as i32;
+    let missing_cursor = cursor_x <= 1 && cursor_y <= 1;
     let (_, natural_width) = root.preferred_width();
     let (_, natural_height) = root.preferred_height();
     if let Some(display) = gdk::Display::default() {
         if let Some(monitor) = display.monitor_at_point(cursor_x, cursor_y) {
             let geometry = monitor.geometry();
             layer_shell::set_monitor(win, &monitor);
+            if missing_cursor {
+                layer_shell::set_margin(win, Edge::Left, 24);
+                layer_shell::set_margin(
+                    win,
+                    Edge::Top,
+                    (geometry.height() - natural_height - 72).max(50),
+                );
+                return;
+            }
             let relative_x = cursor_x - geometry.x();
             let relative_y = cursor_y - geometry.y();
             let left = relative_x.clamp(8, (geometry.width() - natural_width - 8).max(8));

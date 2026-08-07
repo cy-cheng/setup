@@ -86,7 +86,9 @@ private:
         }
         auto &panel = ic->inputPanel();
         auto candidates = panel.candidateList();
-        if (panel.empty() || (!candidates && panel.preedit().empty() && panel.auxUp().empty())) {
+        if (panel.empty() ||
+            (!candidates && panel.preedit().empty() && panel.clientPreedit().empty() &&
+             panel.auxUp().empty() && panel.auxDown().empty())) {
             expanded_ = false;
             page_ = 1;
             sendMessage("{\"type\":\"candidates\",\"visible\":false}");

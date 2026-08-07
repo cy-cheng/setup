@@ -384,6 +384,9 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
             row.pack_start(&value, false, false, 0);
         }
         root.pack_start(&row, false, false, 0);
+        let hint = label("Ctrl+Enter  注音原樣輸出", "candidate-page");
+        hint.set_xalign(0.0);
+        root.pack_start(&hint, false, false, 0);
     }
     win.show_all();
     let divisor = scale.max(1.0);

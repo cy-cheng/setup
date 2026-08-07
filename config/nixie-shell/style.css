@@ -11,7 +11,7 @@
 
 * {
   font-family: "CaskaydiaMono NFP", "Noto Sans TC", sans-serif;
-  font-size: 13px;
+  font-size: 18px;
 }
 
 window.nixie-bar {
@@ -43,8 +43,8 @@ button.module:hover {
 .workspace { min-width: 27px; min-height: 38px; padding: 0; color: @muted; }
 .workspace label { padding: 0; font-size: 20px; }
 .workspace.active { background: @amber; color: @bg; }
-.hardware { color: @muted; font-size: 12px; }
-.clock-time { color: @amber; font-weight: 700; font-size: 15px; }
+.hardware { color: @muted; font-size: 18px; }
+.clock-time { color: @amber; font-weight: 700; font-size: 18px; }
 .clock-date, .muted { color: @muted; }
 .input { color: @amber; font-family: "Noto Sans TC"; font-weight: 700; }
 .network-icon { color: @amber; }
@@ -70,7 +70,7 @@ window.nixie-popover {
   color: @text;
 }
 .panel { padding: 16px; }
-.panel-title { color: @amber; font-size: 16px; font-weight: 700; }
+.panel-title { color: @amber; font-size: 18px; font-weight: 700; }
 .panel-row { padding: 8px; border-radius: 7px; background: alpha(@raised, 0.75); }
 .panel-row:hover { background: alpha(@amber, 0.12); }
 .panel-action { min-width: 28px; min-height: 28px; border-radius: 7px; color: @text; }

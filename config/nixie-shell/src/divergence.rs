@@ -35,6 +35,7 @@ const CELL_WIDTH_FACTOR: f64 = 0.68;
 const METER_Y_OFFSET_AT_300: f64 = -53.0;
 const DOT_MARGIN_LEFT_AT_300: f64 = 70.0;
 const DOT_MARGIN_TOP_AT_300: f64 = -5.0;
+const DOT_SIZE_FACTOR: f64 = 0.70;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Phase {
@@ -151,7 +152,7 @@ fn render_glyph(key: GlyphKey) -> Option<Glyph> {
         gtk::cairo::FontSlant::Normal,
         gtk::cairo::FontWeight::Normal,
     );
-    cr.set_font_size(size);
+    cr.set_font_size(if is_dot { size * DOT_SIZE_FACTOR } else { size });
     let text = key.value.to_string();
     let extents = cr.text_extents(&text).ok()?;
     let font_extents = cr.font_extents().ok()?;

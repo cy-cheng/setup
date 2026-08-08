@@ -151,16 +151,14 @@ pub fn start_workspace(tx: Sender<ModuleUpdate>) {
                             return;
                         }
                     }
-                    if line.starts_with("openwindow>>")
+                    if (line.starts_with("openwindow>>")
                         || line.starts_with("closewindow>>")
-                        || line.starts_with("movewindow>>")
-                    {
-                        if tx
+                        || line.starts_with("movewindow>>"))
+                        && tx
                             .send(ModuleUpdate::WorkspaceApps(telemetry::workspace_apps()))
                             .is_err()
-                        {
-                            return;
-                        }
+                    {
+                        return;
                     }
                 }
             }

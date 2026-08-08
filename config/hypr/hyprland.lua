@@ -14,7 +14,6 @@ hl.workspace_rule({ workspace = "2", monitor = "HDMI-A-1", default = true })
 
 -- Session services. Hyprland.start has exec-once semantics.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("hyprpaper")
     hl.exec_cmd("hypridle")
     hl.exec_cmd("hyprsunset")
     hl.exec_cmd("onedrive -m")

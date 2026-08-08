@@ -18,6 +18,17 @@ ui_popup_source="$config_dir/backend/fcitx-wayland-popup.cpp"
 ui_binary="${XDG_DATA_HOME:-$HOME/.local/share}/../lib/fcitx5/nixieui.so"
 ui_config="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/addon/nixieui.conf"
 
+check_font() {
+    local query="$1" expected="$2" matched
+    matched="$(fc-match -f '%{family}' "$query" 2>/dev/null || true)"
+    if [[ "$matched" != *"$expected"* ]]; then
+        printf 'Warning: divergence font %s is unavailable; a fallback will be used.\n' "$query" >&2
+    fi
+}
+
+check_font "BO NX Medium" "BO NX"
+check_font "TT Chocolates Trl ExtraLight" "TT Chocolates Trl"
+
 if [[ ! -x "$menu_binary" || "$menu_source" -nt "$menu_binary" ]]; then
     cc -O3 -s "$menu_source" -o "$menu_binary" \
         $(pkg-config --cflags --libs libnm gtk+-3.0 gtk-layer-shell-0)

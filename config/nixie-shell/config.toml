@@ -1,6 +1,11 @@
 monitor = 0
 height = 42
 
+[divergence]
+enabled = true
+monitors = "all"
+roll_fps = 20
+
 [commands]
 network = "/home/brine/.config/nixie-shell/bin/open-network-menu"
 network_advanced = "nm-connection-editor"

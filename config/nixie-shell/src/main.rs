@@ -1,3 +1,4 @@
+mod divergence;
 mod events;
 mod telemetry;
 mod tray;
@@ -45,12 +46,32 @@ struct RefreshConfig {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(default)]
+struct DivergenceConfig {
+    enabled: bool,
+    monitors: String,
+    roll_fps: u32,
+}
+
+impl Default for DivergenceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            monitors: "all".into(),
+            roll_fps: 20,
+        }
+    }
+}
+
+#[derive(Clone, Deserialize)]
 struct Config {
     monitor: i32,
     height: i32,
     commands: Commands,
     tray: TrayConfig,
     refresh: RefreshConfig,
+    #[serde(default)]
+    divergence: DivergenceConfig,
 }
 
 #[derive(Clone)]
@@ -1194,6 +1215,11 @@ fn main() -> Result<()> {
     let (input_tx, input_rx) = glib::MainContext::channel(glib::Priority::default());
     monitor_input(input_tx);
     let (win, ui) = build_bar(&config, metadata.clone(), update_tx.clone());
+    let _divergence = divergence::start(
+        config.divergence.enabled,
+        &config.divergence.monitors,
+        config.divergence.roll_fps,
+    );
     let (candidate_win, candidate_root) = create_candidate_window();
     let meta_ref = metadata.clone();
     let meta_ui = ui.clone();

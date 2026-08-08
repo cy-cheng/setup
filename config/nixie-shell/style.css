@@ -20,6 +20,10 @@ window.nixie-bar {
   color: @text;
 }
 
+window.nixie-divergence {
+  background: transparent;
+}
+
 .bar-root { padding: 0 10px; }
 .bar-left, .bar-right { min-height: 42px; }
 

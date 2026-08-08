@@ -6,6 +6,9 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 ## What is included
 
 - A GTK3/Rust layer-shell status bar with native tooltips and StatusNotifier tray.
+- A native, event-driven divergence-meter background on every monitor. It sleeps
+  while showing `1.048596`, reveals the clock and rolls briefly at each minute,
+  without Eww, Hyprpaper, or a polling script.
 - Event-driven workspace, audio, power, battery, network, Bluetooth, and
   notification updates; only hardware metrics and quota data use timers.
 - Network, Bluetooth, audio, battery/power-profile, idle inhibitor, workspace,
@@ -31,9 +34,13 @@ Hyprland 0.55+, Rust/Cargo, a C/C++ compiler, `pkgconf`, GTK3,
 development headers, Cairo/Pango, Wayland client development headers, Dunst,
 Rofi 2, Blueberry, `powerprofilesctl`, and `jq`.
 
+The divergence meter uses the locally installed `BO NX Medium` and
+`TT Chocolates Trl ExtraLight` fonts. They are not redistributed by this
+repository; the shell warns and uses Fontconfig fallbacks when either is absent.
+
 ## Install
 
 Run `./install.sh`, then log out and back in. The installer copies only the
 tracked configuration, builds the optimized bar, and installs the two local
-Fcitx addons. Hyprland starts `~/.config/nixie-shell/start-ui.sh`; Waybar and
-Eww are not part of this setup.
+Fcitx addons. Hyprland starts `~/.config/nixie-shell/start-ui.sh`; Waybar, Eww,
+and Hyprpaper are not part of the running setup.

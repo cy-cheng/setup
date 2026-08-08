@@ -5,6 +5,17 @@ repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 
+check_font() {
+    local query="$1" expected="$2" matched
+    matched="$(fc-match -f '%{family}' "$query" 2>/dev/null || true)"
+    if [[ "$matched" != *"$expected"* ]]; then
+        printf 'Warning: divergence font %s is unavailable; a fallback will be used.\n' "$query" >&2
+    fi
+}
+
+check_font "BO NX Medium" "BO NX"
+check_font "TT Chocolates Trl ExtraLight" "TT Chocolates Trl"
+
 install -d "$config_home" "$data_home"
 cp -a -- "$repo_dir/config/." "$config_home/"
 cp -a -- "$repo_dir/local/share/." "$data_home/"

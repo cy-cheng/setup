@@ -32,7 +32,9 @@ const STABLE_DIGITS: [Option<char>; 8] = [
 const STABLE_DOTS: [bool; 8] = [false, true, false, false, false, false, false, false];
 const GLYPH_PAD: f64 = 38.0;
 const CELL_WIDTH_FACTOR: f64 = 0.68;
-const DOT_X_OFFSET: f64 = 0.27;
+const METER_Y_OFFSET_AT_300: f64 = -53.0;
+const DOT_MARGIN_LEFT_AT_300: f64 = 70.0;
+const DOT_MARGIN_TOP_AT_300: f64 = -5.0;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Phase {
@@ -117,15 +119,8 @@ impl GlyphCache {
             for &ghost in ghosts {
                 paint_glyph(&cr, self, ghost, size, 0, x, GLYPH_PAD);
             }
-            paint_glyph(
-                &cr,
-                self,
-                '.',
-                size,
-                1,
-                x + cell_width * DOT_X_OFFSET,
-                GLYPH_PAD,
-            );
+            let dot_x = x + DOT_MARGIN_LEFT_AT_300 * 0.5 * (font_size / 300.0);
+            paint_glyph(&cr, self, '.', size, 1, dot_x, GLYPH_PAD);
         }
         surface.flush();
         self.backplates.insert(size, surface.clone());
@@ -159,12 +154,19 @@ fn render_glyph(key: GlyphKey) -> Option<Glyph> {
     cr.set_font_size(size);
     let text = key.value.to_string();
     let extents = cr.text_extents(&text).ok()?;
+    let font_extents = cr.font_extents().ok()?;
     let x = pad + (cell_width - extents.width()) / 2.0 - extents.x_bearing();
-    let y = if is_dot {
-        pad + cell_height * 0.80 - extents.height() / 2.0 - extents.y_bearing()
-    } else {
-        pad + (cell_height - extents.height()) / 2.0 - extents.y_bearing()
-    };
+    // Eww's overlay labels shared a Pango line box. Centre Cairo's equivalent
+    // font line, rather than each visible glyph's ink bounds, so the period
+    // naturally rests at the font baseline like the original wallpaper.
+    let y = pad
+        + (cell_height - font_extents.ascent() - font_extents.descent()) / 2.0
+        + font_extents.ascent()
+        + if is_dot {
+            DOT_MARGIN_TOP_AT_300 * size / 300.0
+        } else {
+            0.0
+        };
 
     match key.kind {
         0 | 1 => draw_text(&cr, &text, x, y, (0.208, 0.090, 0.039, 1.0)),
@@ -288,7 +290,7 @@ fn add_surface(
     let max_by_height = geometry.height() as f64 * 0.62;
     let font_size = 300.0_f64.min(max_by_width).min(max_by_height).max(72.0);
     let meter_width = (font_size * CELL_WIDTH_FACTOR * 8.0 + GLYPH_PAD * 2.0).ceil() as i32;
-    let offset = 53.0 * (font_size / 300.0);
+    let offset = METER_Y_OFFSET_AT_300.abs() * (font_size / 300.0);
     let meter_height = (font_size * 1.35 + GLYPH_PAD * 2.0 + offset * 2.0).ceil() as i32;
     window.set_default_size(meter_width, meter_height);
     layer_shell::set_anchor(&window, Edge::Top, true);
@@ -362,7 +364,7 @@ fn draw_meter(
     let cell_width = font_size * CELL_WIDTH_FACTOR;
     let cell_height = font_size * 1.35;
     let start_x = (width as f64 - cell_width * 8.0) / 2.0;
-    let y = (height as f64 - cell_height) / 2.0 - 53.0 * (font_size / 300.0);
+    let y = (height as f64 - cell_height) / 2.0 + METER_Y_OFFSET_AT_300 * (font_size / 300.0);
 
     if let Some(backplate) = cache.backplate(size) {
         let _ = cr.set_source_surface(&backplate, start_x - GLYPH_PAD, y - GLYPH_PAD);
@@ -377,7 +379,10 @@ fn draw_meter(
         }
         if state.dots[tube] {
             let kind = if state.rolling { 12 + state.glow } else { 3 };
-            paint_glyph(cr, cache, '.', size, kind, x + cell_width * DOT_X_OFFSET, y);
+            // GtkOverlay centres the child's total box. A one-sided 70px CSS
+            // margin therefore moved the dot's ink by half that amount.
+            let dot_x = x + DOT_MARGIN_LEFT_AT_300 * 0.5 * (font_size / 300.0);
+            paint_glyph(cr, cache, '.', size, kind, dot_x, y);
         }
     }
 }

@@ -1171,17 +1171,17 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
 
 fn schedule_clock(ui: Ui) {
     let now = Local::now();
-    let small_dot = r#"<span font_family="TT Chocolates Trl ExtraLight" size="70%">  .</span>"#;
+    let separator = r#"<span font_family="CaskaydiaMono NFP">  </span><span font_family="CaskaydiaMono NFP" size="60%">.</span>"#;
     ui.clock_time.set_markup(&format!(
         "{}{}{}",
         now.format("%H"),
-        small_dot,
+        separator,
         now.format("%M")
     ));
     ui.clock_date.set_markup(&format!(
         "{}{}{}",
         now.format("%m"),
-        small_dot,
+        separator,
         now.format("%d")
     ));
     let delay = Duration::from_secs((60 - now.second() as u64).max(1));

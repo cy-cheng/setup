@@ -1171,7 +1171,7 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
 
 fn schedule_clock(ui: Ui) {
     let now = Local::now();
-    let separator = r#"<span font_family="CaskaydiaMono NFP"> </span><span font_family="CaskaydiaMono NFP" size="60%">.</span>"#;
+    let separator = r#"<span font_family="CaskaydiaMono NFP" size="60%"> .</span>"#;
     ui.clock_time.set_markup(&format!(
         "{}{}{}",
         now.format("%H"),

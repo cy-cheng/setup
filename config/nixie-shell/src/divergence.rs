@@ -31,11 +31,11 @@ const STABLE_DIGITS: [Option<char>; 8] = [
 ];
 const STABLE_DOTS: [bool; 8] = [false, true, false, false, false, false, false, false];
 const GLYPH_PAD: f64 = 38.0;
-const CELL_WIDTH_FACTOR: f64 = 0.68;
-const METER_Y_OFFSET_AT_300: f64 = -53.0;
+const CELL_WIDTH_FACTOR: f64 = 0.52;
+const METER_Y_OFFSET_AT_300: f64 = 0.0;
 const DOT_MARGIN_LEFT_AT_300: f64 = 70.0;
-const DOT_MARGIN_TOP_AT_300: f64 = -5.0;
-const DOT_SIZE_FACTOR: f64 = 0.70;
+const DOT_MARGIN_TOP_AT_300: f64 = 50.0;
+const DOT_SIZE_FACTOR: f64 = 0.55;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Phase {

@@ -58,7 +58,7 @@ button.idle.active, button.idle.active:hover {
   font-size: 32px;
   font-weight: 700;
 }
-.clock { min-height: 38px; padding: 0 12px; }
+.clock { padding: 0 12px; }
 .clock label { padding: 0; margin-top: 2px; margin-bottom: -10px; }
 .clock-time { color: @amber; }
 .clock-date, .muted { color: @muted; }

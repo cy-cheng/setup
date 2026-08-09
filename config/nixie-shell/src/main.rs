@@ -808,6 +808,7 @@ fn build_bar(
     left.pack_start(&workspaces, false, false, 0);
 
     let clock = button("clock");
+    clock.set_height_request(config.height);
     let clock_box = hbox(7);
     let clock_time = label("--:--", "clock-time");
     let clock_date = label("--.--", "clock-date");

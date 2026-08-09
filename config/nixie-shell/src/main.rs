@@ -1009,7 +1009,7 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
     ) {
         for (idx, b) in ui.workspace_buttons.iter().enumerate() {
             let apps = s.workspace_apps.get(idx).map(Vec::as_slice).unwrap_or(&[]);
-            b.set_visible(idx < 3 || !apps.is_empty());
+            b.set_visible(idx < 3 || !apps.is_empty() || s.workspace == (idx + 1) as i32);
             b.set_label(&workspace_label(idx, apps));
             b.set_tooltip_text(Some(&if apps.is_empty() {
                 format!("Workspace {}", idx + 1)

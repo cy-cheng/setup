@@ -1170,11 +1170,21 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
 
 fn schedule_clock(ui: Ui) {
     let now = Local::now();
-    let dot = r#"<span font_family="TT Chocolates Trl ExtraLight" size="70%">.</span>"#;
-    ui.clock_time
-        .set_markup(&format!("{}{}{}", now.format("%H"), dot, now.format("%M")));
-    ui.clock_date
-        .set_markup(&format!("{}{}{}", now.format("%m"), dot, now.format("%d")));
+    let small_punctuation = |value: char| {
+        format!(r#"<span font_family="TT Chocolates Trl ExtraLight" size="70%">{value}</span>"#)
+    };
+    ui.clock_time.set_markup(&format!(
+        "{}{}{}",
+        now.format("%H"),
+        small_punctuation(':'),
+        now.format("%M")
+    ));
+    ui.clock_date.set_markup(&format!(
+        "{}{}{}",
+        now.format("%m"),
+        small_punctuation('.'),
+        now.format("%d")
+    ));
     let delay = Duration::from_secs((60 - now.second() as u64).max(1));
     glib::timeout_add_local_once(delay, move || schedule_clock(ui));
 }

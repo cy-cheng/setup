@@ -43,15 +43,23 @@ button.module:hover {
   color: @amber;
 }
 
+button.idle.active, button.idle.active:hover {
+  border-color: @amber;
+  background: @amber;
+  color: @bg;
+}
+
 .workspace { min-width: 27px; min-height: 38px; padding: 0; color: @muted; }
 .workspace label { padding: 0; font-size: 20px; }
 .workspace.active { background: @amber; color: @bg; }
 .hardware { color: @muted; font-size: 18px; }
 .clock-time, .clock-date {
   font-family: "BO NX Medium", "BO NX";
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
 }
+.clock { padding-top: 0; padding-bottom: 0; }
+.clock label { padding-top: 0; padding-bottom: 0; margin-top: -2px; margin-bottom: -2px; }
 .clock-time { color: @amber; }
 .clock-date, .muted { color: @muted; }
 .input { color: @amber; font-family: "Noto Sans TC"; font-weight: 700; }

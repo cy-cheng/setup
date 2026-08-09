@@ -167,3 +167,11 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true 
 -- Keep the original catch-all rules from the pre-Lua config.
 hl.window_rule({ name = "catch-all", match = { class = ".*" } })
 hl.layer_rule({ name = "layer", no_anim = true })
+hl.layer_rule({
+    name = "blur-nixie-popups",
+    match = { namespace = "^nixie-(calendar|llm|notifications|candidates|network-menu)$" },
+    blur = true,
+    ignore_alpha = 0.12,
+    xray = true,
+    no_anim = true,
+})

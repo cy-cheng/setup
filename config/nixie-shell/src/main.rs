@@ -318,8 +318,18 @@ fn vbox(spacing: i32) -> gtk::Box {
     gtk::Box::new(gtk::Orientation::Vertical, spacing)
 }
 
+fn enable_transparency(win: &gtk::Window) {
+    win.set_app_paintable(true);
+    if let Some(screen) = WidgetExt::screen(win) {
+        if let Some(visual) = screen.rgba_visual() {
+            win.set_visual(Some(&visual));
+        }
+    }
+}
+
 fn popup(name: &str, width: i32, height: i32) -> gtk::Window {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
+    enable_transparency(&win);
     win.set_widget_name(name);
     win.style_context().add_class("nixie-popover");
     win.set_default_size(width, height);
@@ -372,6 +382,7 @@ fn create_calendar() -> gtk::Window {
 
 fn create_candidate_window() -> (gtk::Window, gtk::Box) {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
+    enable_transparency(&win);
     win.set_widget_name("nixie-candidates");
     win.style_context().add_class("nixie-candidates");
     layer_shell::init_for_window(&win);

@@ -337,12 +337,12 @@ static void manage_clicked(GtkButton *button, gpointer data) {
 
 static void load_css(void) {
     const char *css =
-        "window { background: #100b08; border: 1px solid #d78924; border-radius: 10px; color: #f2e7d5; }"
+        "window { background: rgba(16, 11, 8, 0.80); border: 1px solid #d78924; border-radius: 10px; color: #f2e7d5; }"
         ".menu-content { padding: 12px; }"
         ".title { font-weight: 700; font-size: 15px; color: #f4a62a; }"
         ".section-title { margin-top: 7px; color: #9d8b78; font-weight: 700; }"
         ".network-row { min-height: 35px; padding: 2px 8px; border: 0; border-radius: 6px; background: transparent; color: #f2e7d5; }"
-        ".network-row:hover { background: #2a1b12; }"
+        ".network-row:hover { background: rgba(42, 27, 18, 0.82); }"
         ".network-row:disabled { color: #f4a62a; opacity: 1; }"
         ".wifi-icon { color: #f4a62a; font-family: 'Symbols Nerd Font Mono'; }"
         ".connected { color: #87c66b; font-size: 11px; }"
@@ -378,6 +378,9 @@ int main(int argc, char **argv) {
     }
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_widget_set_app_paintable(window, TRUE);
+    GdkVisual *visual = gdk_screen_get_rgba_visual(gtk_widget_get_screen(window));
+    if (visual != NULL) gtk_widget_set_visual(window, visual);
     gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
     gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
     gtk_widget_set_size_request(window, 360, -1);

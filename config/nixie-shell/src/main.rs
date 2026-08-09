@@ -319,7 +319,6 @@ fn vbox(spacing: i32) -> gtk::Box {
 }
 
 fn enable_transparency(win: &gtk::Window) {
-    win.set_app_paintable(true);
     if let Some(screen) = WidgetExt::screen(win) {
         if let Some(visual) = screen.rgba_visual() {
             win.set_visual(Some(&visual));

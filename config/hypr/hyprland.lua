@@ -56,7 +56,7 @@ hl.config({
         },
         blur = {
             enabled = true,
-            size = 3,
+            size = 5,
             passes = 3,
             vibrancy = 0.1696,
         },
@@ -172,6 +172,5 @@ hl.layer_rule({
     match = { namespace = "^nixie-(calendar|llm|notifications|candidates|network-menu)$" },
     blur = true,
     ignore_alpha = 0.12,
-    xray = true,
     no_anim = true,
 })

@@ -75,12 +75,12 @@ button.idle.active, button.idle.active:hover {
 tooltip.background {
   border: 1px solid @border;
   border-radius: 7px;
-  background: alpha(@raised, 0.58);
+  background: alpha(@raised, 0.45);
 }
 tooltip label { padding: 7px 9px; color: @text; font-family: "Noto Sans TC"; }
 
 window.nixie-popover {
-  background: alpha(@surface, 0.58);
+  background: alpha(@surface, 0.45);
   border: 1px solid @border;
   border-radius: 12px;
   color: @text;
@@ -97,7 +97,7 @@ calendar:selected { background: @amber; color: @bg; border-radius: 5px; }
 calendar.header { color: @amber; }
 
 window.nixie-candidates {
-  background: alpha(@surface, 0.58);
+  background: alpha(@surface, 0.45);
   border: 1px solid @amber_dim;
   border-radius: 9px;
   color: @text;

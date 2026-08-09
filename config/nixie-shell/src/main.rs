@@ -972,7 +972,7 @@ fn build_bar(
     base.pack_end(&right, false, false, 0);
     center.add(&base);
     clock.set_halign(gtk::Align::Center);
-    clock.set_valign(gtk::Align::Center);
+    clock.set_valign(gtk::Align::Fill);
     center.add_overlay(&clock);
     win.add(&center);
     (

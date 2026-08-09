@@ -75,7 +75,7 @@ button.idle.active, button.idle.active:hover {
 tooltip.background {
   border: 1px solid @border;
   border-radius: 7px;
-  background: @raised;
+  background: alpha(@raised, 0.58);
 }
 tooltip label { padding: 7px 9px; color: @text; font-family: "Noto Sans TC"; }
 

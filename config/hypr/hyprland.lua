@@ -174,3 +174,9 @@ hl.layer_rule({
     ignore_alpha = 0.12,
     no_anim = true,
 })
+hl.layer_rule({
+    name = "blur-nixie-tooltips",
+    match = { namespace = "^nixie-shell$" },
+    blur_popups = true,
+    no_anim = true,
+})

@@ -142,7 +142,7 @@ fn default_page() -> i32 {
     1
 }
 
-const WORKSPACE_GLYPHS: [&str; 4] = ["α", "β", "γ", "δ"];
+const WORKSPACE_GLYPHS: [&str; 10] = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ", "ι", "κ"];
 
 fn application_icon(class: &str) -> &'static str {
     match class {

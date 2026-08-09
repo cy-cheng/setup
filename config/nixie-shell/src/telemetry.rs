@@ -69,7 +69,7 @@ pub fn spawn(program: &str, args: &[&str]) {
 }
 
 pub fn workspace_apps() -> Vec<Vec<String>> {
-    let mut workspaces = vec![Vec::new(); 4];
+    let mut workspaces = vec![Vec::new(); 10];
     let Ok(clients) = serde_json::from_str::<Value>(&output("hyprctl", &["clients", "-j"])) else {
         return workspaces;
     };
@@ -79,7 +79,7 @@ pub fn workspace_apps() -> Vec<Vec<String>> {
 
     for client in clients {
         let workspace = client["workspace"]["id"].as_i64().unwrap_or_default();
-        if !(1..=4).contains(&workspace) {
+        if !(1..=10).contains(&workspace) {
             continue;
         }
         let class = client["class"]

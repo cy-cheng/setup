@@ -776,6 +776,10 @@ fn build_bar(
         let id = id as i32 + 1;
         let b = button("workspace");
         b.set_label(glyph);
+        if id > 3 {
+            b.set_no_show_all(true);
+            b.hide();
+        }
         b.set_tooltip_text(Some(&format!("Workspace {id}")));
         let workspace_popups = popups.clone();
         b.connect_clicked(move |_| {
@@ -1005,6 +1009,7 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
     ) {
         for (idx, b) in ui.workspace_buttons.iter().enumerate() {
             let apps = s.workspace_apps.get(idx).map(Vec::as_slice).unwrap_or(&[]);
+            b.set_visible(idx < 3 || !apps.is_empty());
             b.set_label(&workspace_label(idx, apps));
             b.set_tooltip_text(Some(&if apps.is_empty() {
                 format!("Workspace {}", idx + 1)

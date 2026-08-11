@@ -68,7 +68,19 @@ button.power.battery-critical, button.power.battery-critical:hover {
 .workspace { min-width: 27px; min-height: 38px; padding: 0; color: @muted; }
 .workspace label { padding: 0; font-size: 20px; }
 .workspace.active { background: @amber; color: @bg; }
+.workspace.notification-alert, .workspace.notification-alert:hover {
+  border-color: @critical;
+  background: @critical;
+  color: @bg;
+}
 .hardware { color: @muted; font-size: 18px; }
+.system { min-width: 32px; padding: 0 7px; color: @amber; }
+.microphone-privacy, .microphone-privacy:hover {
+  min-width: 30px;
+  padding: 0 6px;
+  border-color: @critical;
+  color: @critical;
+}
 .clock-time, .clock-date {
   font-family: "BO NX Medium", "BO NX";
   font-size: 32px;
@@ -107,6 +119,24 @@ window.nixie-popover {
 .panel-row:hover { background: alpha(@amber, 0.12); }
 .panel-action { min-width: 28px; min-height: 28px; border-radius: 7px; color: @text; }
 .panel-action:hover { background: alpha(@amber, 0.16); color: @amber; }
+.system-section { padding: 10px; border-radius: 8px; background: alpha(@raised, 0.72); }
+.system-icon { min-width: 24px; color: @amber; }
+.metric-value { color: @amber; font-weight: 700; }
+.device-name, .capture-apps { font-size: 14px; }
+.session-footer { padding-top: 4px; }
+.session-action {
+  min-height: 32px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: alpha(@raised, 0.75);
+  color: @text;
+  font-size: 14px;
+}
+.session-action:hover { background: alpha(@amber, 0.16); color: @amber; }
+.session-action.disabled { color: @muted; }
+scale trough { min-height: 5px; border-radius: 4px; background: alpha(@muted, 0.32); }
+scale highlight { border-radius: 4px; background: @amber; }
+scale slider { min-width: 16px; min-height: 16px; border-radius: 9px; background: @text; }
 
 calendar { padding: 8px; color: @text; }
 calendar:selected { background: @amber; color: @bg; border-radius: 5px; }

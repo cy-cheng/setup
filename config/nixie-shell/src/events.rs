@@ -4,6 +4,7 @@ use glib::Sender;
 use libpulse_binding as pulse;
 use pulse::context::{subscribe::InterestMaskSet, Context, FlagSet, State};
 use pulse::mainloop::standard::{IterateResult, Mainloop};
+use std::ffi::CString;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
@@ -20,6 +21,26 @@ pub enum ModuleUpdate {
         mem: u64,
         temp: i64,
     },
+    ExtendedSystem {
+        storage: u64,
+        uptime: u64,
+    },
+    Brightness(u64),
+    Microphone {
+        volume: u64,
+        muted: bool,
+        device: String,
+        apps: Vec<String>,
+    },
+    WorkspaceAlert {
+        workspace: i32,
+        active: bool,
+    },
+    WorkspaceAlertPulse {
+        workspace: i32,
+        active: bool,
+    },
+    ClearWorkspaceAlerts,
     Audio {
         volume: u64,
         muted: bool,
@@ -59,6 +80,59 @@ impl ModuleUpdate {
                 state.cpu = cpu;
                 state.mem = mem;
                 state.temp = temp;
+            }
+            Self::ExtendedSystem { storage, uptime } => {
+                state.storage = storage;
+                state.uptime = uptime;
+            }
+            Self::Brightness(value) => state.brightness = value,
+            Self::Microphone {
+                volume,
+                muted,
+                device,
+                apps,
+            } => {
+                state.microphone_volume = volume;
+                state.microphone_muted = muted;
+                state.microphone_device = device;
+                state.microphone_apps = apps;
+            }
+            Self::WorkspaceAlert { workspace, active } => {
+                if state.workspace_alerts.len() < 10 {
+                    state.workspace_alerts.resize(10, false);
+                }
+                if state.workspace_alert_pulses.len() < 10 {
+                    state.workspace_alert_pulses.resize(10, false);
+                }
+                if let Some(alert) = state
+                    .workspace_alerts
+                    .get_mut((workspace - 1).max(0) as usize)
+                {
+                    *alert = active;
+                }
+                if let Some(pulse) = state
+                    .workspace_alert_pulses
+                    .get_mut((workspace - 1).max(0) as usize)
+                {
+                    *pulse = active;
+                }
+            }
+            Self::WorkspaceAlertPulse { workspace, active } => {
+                if state.workspace_alert_pulses.len() < 10 {
+                    state.workspace_alert_pulses.resize(10, false);
+                }
+                if let Some(pulse) = state
+                    .workspace_alert_pulses
+                    .get_mut((workspace - 1).max(0) as usize)
+                {
+                    *pulse = active;
+                }
+            }
+            Self::ClearWorkspaceAlerts => {
+                state.workspace_alerts.resize(10, false);
+                state.workspace_alerts.fill(false);
+                state.workspace_alert_pulses.resize(10, false);
+                state.workspace_alert_pulses.fill(false);
             }
             Self::Audio { volume, muted } => {
                 state.volume = volume;
@@ -104,6 +178,23 @@ impl ModuleUpdate {
 fn send_audio(tx: &Sender<ModuleUpdate>) {
     let (volume, muted) = telemetry::audio();
     let _ = tx.send(ModuleUpdate::Audio { volume, muted });
+}
+
+fn send_microphone(tx: &Sender<ModuleUpdate>) {
+    let (volume, muted, device, apps) = telemetry::microphone();
+    let _ = tx.send(ModuleUpdate::Microphone {
+        volume,
+        muted,
+        device,
+        apps,
+    });
+}
+
+pub fn refresh_extended_system(tx: &Sender<ModuleUpdate>) {
+    let _ = tx.send(ModuleUpdate::ExtendedSystem {
+        storage: telemetry::storage_percent(),
+        uptime: telemetry::uptime_seconds(),
+    });
 }
 
 fn send_network(tx: &Sender<ModuleUpdate>) {
@@ -197,24 +288,73 @@ pub fn start_audio(tx: Sender<ModuleUpdate>) {
             continue;
         }
         send_audio(&tx);
+        send_microphone(&tx);
         let event_tx = tx.clone();
         context.set_subscribe_callback(Some(Box::new(move |facility, _, _| {
             if matches!(
                 facility,
                 Some(
                     pulse::context::subscribe::Facility::Sink
+                        | pulse::context::subscribe::Facility::Source
+                        | pulse::context::subscribe::Facility::SourceOutput
                         | pulse::context::subscribe::Facility::Server
                 )
             ) {
                 send_audio(&event_tx);
+                send_microphone(&event_tx);
             }
         })));
-        let _subscription =
-            context.subscribe(InterestMaskSet::SINK | InterestMaskSet::SERVER, |_| {});
+        let _subscription = context.subscribe(
+            InterestMaskSet::SINK
+                | InterestMaskSet::SOURCE
+                | InterestMaskSet::SOURCE_OUTPUT
+                | InterestMaskSet::SERVER,
+            |_| {},
+        );
         if let Err((error, _)) = mainloop.run() {
             log::warn!("PulseAudio event loop: {error}");
         }
         thread::sleep(Duration::from_secs(1));
+    });
+}
+
+pub fn start_brightness(tx: Sender<ModuleUpdate>) {
+    thread::spawn(move || {
+        let Some(path) = telemetry::backlight_path() else {
+            return;
+        };
+        let _ = tx.send(ModuleUpdate::Brightness(telemetry::brightness()));
+        let descriptor = unsafe { libc::inotify_init1(libc::IN_CLOEXEC) };
+        if descriptor < 0 {
+            return;
+        }
+        let Ok(path) = CString::new(path.to_string_lossy().as_bytes()) else {
+            unsafe { libc::close(descriptor) };
+            return;
+        };
+        let watch = unsafe {
+            libc::inotify_add_watch(
+                descriptor,
+                path.as_ptr(),
+                libc::IN_MODIFY | libc::IN_CLOSE_WRITE,
+            )
+        };
+        if watch < 0 {
+            unsafe { libc::close(descriptor) };
+            return;
+        }
+        let mut buffer = [0u8; 512];
+        loop {
+            let read = unsafe { libc::read(descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
+            if read <= 0
+                || tx
+                    .send(ModuleUpdate::Brightness(telemetry::brightness()))
+                    .is_err()
+            {
+                break;
+            }
+        }
+        unsafe { libc::close(descriptor) };
     });
 }
 
@@ -254,6 +394,8 @@ pub fn start_reconcile(tx: Sender<ModuleUpdate>, reconcile_seconds: u64) {
         let (percent, status) = telemetry::battery();
         let _ = tx.send(ModuleUpdate::Battery { percent, status });
         send_audio(&tx);
+        send_microphone(&tx);
+        let _ = tx.send(ModuleUpdate::Brightness(telemetry::brightness()));
         send_network(&tx);
         send_bluetooth(&tx);
         refresh_notifications(&tx);
@@ -393,4 +535,29 @@ fn start_signal_refresh(
             glib::timeout_future(Duration::from_secs(1)).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clearing_workspace_alerts_clears_persistent_and_pulse_state() {
+        let mut state = Snapshot::default();
+        ModuleUpdate::WorkspaceAlert {
+            workspace: 4,
+            active: true,
+        }
+        .apply(&mut state);
+        ModuleUpdate::WorkspaceAlertPulse {
+            workspace: 4,
+            active: false,
+        }
+        .apply(&mut state);
+        assert!(state.workspace_alerts[3]);
+        assert!(!state.workspace_alert_pulses[3]);
+        ModuleUpdate::ClearWorkspaceAlerts.apply(&mut state);
+        assert!(state.workspace_alerts.iter().all(|alert| !alert));
+        assert!(state.workspace_alert_pulses.iter().all(|pulse| !pulse));
+    }
 }

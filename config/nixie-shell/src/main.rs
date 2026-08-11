@@ -11,7 +11,7 @@ use gtk::gdk;
 use gtk::prelude::*;
 use gtk_layer_shell::{self as layer_shell, Edge, Layer};
 use serde::Deserialize;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fs;
@@ -78,7 +78,7 @@ struct Config {
 struct NotificationMeta {
     app: String,
     summary: String,
-    workspace: i32,
+    workspace: Option<i32>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -217,7 +217,9 @@ fn battery_icon(percent: u64, status: &str) -> &'static str {
 #[derive(Clone)]
 struct Ui {
     workspace_buttons: Vec<gtk::Button>,
-    hardware: gtk::Label,
+    system: gtk::Button,
+    microphone_privacy: gtk::Button,
+    system_panel: SystemPanelUi,
     clock_time: gtk::Label,
     clock_date: gtk::Label,
     input: gtk::Button,
@@ -231,6 +233,25 @@ struct Ui {
     idle: gtk::Button,
     bluetooth: gtk::Button,
     notifications: gtk::Button,
+}
+
+#[derive(Clone)]
+struct SystemPanelUi {
+    window: gtk::Window,
+    cpu: gtk::Label,
+    memory: gtk::Label,
+    temperature: gtk::Label,
+    storage: gtk::Label,
+    uptime: gtk::Label,
+    brightness: gtk::Scale,
+    brightness_value: gtk::Label,
+    microphone: gtk::Scale,
+    microphone_value: gtk::Label,
+    microphone_mute: gtk::Button,
+    microphone_device: gtk::Label,
+    microphone_apps: gtk::Label,
+    syncing_brightness: Rc<Cell<bool>>,
+    syncing_microphone: Rc<Cell<bool>>,
 }
 
 #[derive(Clone, Default)]
@@ -564,6 +585,239 @@ fn create_llm_panel() -> (gtk::Window, gtk::Label) {
     (win, detail)
 }
 
+fn metric_row(icon: &str, title: &str, value: &gtk::Label) -> gtk::Box {
+    let row = hbox(10);
+    let icon = label(icon, "system-icon");
+    let title = label(title, "");
+    title.set_xalign(0.0);
+    title.set_hexpand(true);
+    value.set_xalign(1.0);
+    row.pack_start(&icon, false, false, 0);
+    row.pack_start(&title, true, true, 0);
+    row.pack_end(value, false, false, 0);
+    row
+}
+
+fn confirmed_action(
+    label_text: &'static str,
+    program: &'static str,
+    args: &'static [&'static str],
+) -> gtk::Button {
+    let action = button("session-action");
+    action.set_label(label_text);
+    let armed = Rc::new(Cell::new(false));
+    let generation = Rc::new(Cell::new(0u64));
+    let armed_ref = armed.clone();
+    let generation_ref = generation.clone();
+    action.connect_clicked(move |button| {
+        if armed_ref.replace(false) {
+            generation_ref.set(generation_ref.get().wrapping_add(1));
+            telemetry::spawn(program, args);
+            button.set_label(label_text);
+            return;
+        }
+        armed_ref.set(true);
+        button.set_label(&format!("Confirm {label_text}"));
+        let token = generation_ref.get().wrapping_add(1);
+        generation_ref.set(token);
+        let reset_button = button.clone();
+        let reset_armed = armed_ref.clone();
+        let reset_generation = generation_ref.clone();
+        glib::timeout_add_local_once(Duration::from_secs(5), move || {
+            if reset_generation.get() == token {
+                reset_armed.set(false);
+                reset_button.set_label(label_text);
+            }
+        });
+    });
+    action
+}
+
+fn create_system_panel(updates: glib::Sender<ModuleUpdate>) -> SystemPanelUi {
+    let win = popup("nixie-system", 430, 600);
+    let root = vbox(12);
+    root.style_context().add_class("panel");
+    root.pack_start(&label("System", "panel-title"), false, false, 0);
+
+    let metrics = vbox(8);
+    metrics.style_context().add_class("system-section");
+    let cpu = label("--%", "metric-value");
+    let memory = label("--%", "metric-value");
+    let temperature = label("--°", "metric-value");
+    let storage = label("--%", "metric-value");
+    let uptime = label("--", "metric-value");
+    metrics.pack_start(&metric_row("󰘚", "CPU usage", &cpu), false, false, 0);
+    metrics.pack_start(&metric_row("󰍛", "Memory usage", &memory), false, false, 0);
+    metrics.pack_start(
+        &metric_row("󰔏", "Temperature", &temperature),
+        false,
+        false,
+        0,
+    );
+    metrics.pack_start(&metric_row("󰋊", "Root storage", &storage), false, false, 0);
+    metrics.pack_start(&metric_row("󰥔", "Uptime", &uptime), false, false, 0);
+    root.pack_start(&metrics, false, false, 0);
+
+    let controls = vbox(8);
+    controls.style_context().add_class("system-section");
+    let brightness_title = hbox(8);
+    brightness_title.pack_start(&label("󰃠", "system-icon"), false, false, 0);
+    let brightness_name = label("Brightness", "");
+    brightness_name.set_hexpand(true);
+    brightness_name.set_xalign(0.0);
+    brightness_title.pack_start(&brightness_name, true, true, 0);
+    let brightness_value = label("--%", "metric-value");
+    brightness_title.pack_end(&brightness_value, false, false, 0);
+    controls.pack_start(&brightness_title, false, false, 0);
+    let brightness = gtk::Scale::with_range(gtk::Orientation::Horizontal, 1.0, 100.0, 1.0);
+    brightness.set_draw_value(false);
+    let syncing_brightness = Rc::new(Cell::new(false));
+    let brightness_generation = Rc::new(Cell::new(0u64));
+    let syncing_ref = syncing_brightness.clone();
+    let generation_ref = brightness_generation.clone();
+    brightness.connect_value_changed(move |scale| {
+        if syncing_ref.get() {
+            return;
+        }
+        let value = scale.value().round() as u64;
+        let token = generation_ref.get().wrapping_add(1);
+        generation_ref.set(token);
+        let generation = generation_ref.clone();
+        glib::timeout_add_local_once(Duration::from_millis(90), move || {
+            if generation.get() == token {
+                telemetry::spawn("brightnessctl", &["set", &format!("{value}%")]);
+            }
+        });
+    });
+    controls.pack_start(&brightness, false, false, 0);
+
+    let microphone_title = hbox(8);
+    microphone_title
+        .style_context()
+        .add_class("microphone-controls");
+    let microphone_mute = button("panel-action microphone-mute");
+    microphone_mute.set_label("󰍬");
+    microphone_mute.set_tooltip_text(Some("Mute microphone"));
+    microphone_mute.connect_clicked(|_| {
+        telemetry::spawn("wpctl", &["set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
+    });
+    microphone_title.pack_start(&microphone_mute, false, false, 0);
+    let microphone_name = label("Microphone", "");
+    microphone_name.set_hexpand(true);
+    microphone_name.set_xalign(0.0);
+    microphone_title.pack_start(&microphone_name, true, true, 0);
+    let microphone_value = label("--%", "metric-value");
+    microphone_title.pack_end(&microphone_value, false, false, 0);
+    controls.pack_start(&microphone_title, false, false, 0);
+    let microphone = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 1.0);
+    microphone.set_draw_value(false);
+    let syncing_microphone = Rc::new(Cell::new(false));
+    let microphone_generation = Rc::new(Cell::new(0u64));
+    let syncing_ref = syncing_microphone.clone();
+    let generation_ref = microphone_generation.clone();
+    microphone.connect_value_changed(move |scale| {
+        if syncing_ref.get() {
+            return;
+        }
+        let value = scale.value().round() as u64;
+        let token = generation_ref.get().wrapping_add(1);
+        generation_ref.set(token);
+        let generation = generation_ref.clone();
+        glib::timeout_add_local_once(Duration::from_millis(90), move || {
+            if generation.get() == token {
+                telemetry::spawn(
+                    "wpctl",
+                    &["set-volume", "@DEFAULT_AUDIO_SOURCE@", &format!("{value}%")],
+                );
+            }
+        });
+    });
+    controls.pack_start(&microphone, false, false, 0);
+    let microphone_device = label("No input device", "muted device-name");
+    microphone_device.set_xalign(0.0);
+    microphone_device.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+    controls.pack_start(&microphone_device, false, false, 0);
+    let microphone_apps = label(
+        "No applications are using the microphone",
+        "muted capture-apps",
+    );
+    microphone_apps.set_xalign(0.0);
+    microphone_apps.set_line_wrap(true);
+    controls.pack_start(&microphone_apps, false, false, 0);
+    root.pack_start(&controls, false, false, 0);
+
+    let footer = gtk::Grid::new();
+    footer.set_column_spacing(5);
+    footer.set_row_spacing(5);
+    footer.style_context().add_class("session-footer");
+    let lock = button("session-action");
+    lock.set_label("Lock");
+    lock.connect_clicked(|_| telemetry::spawn("hyprlock", &[]));
+    let suspend = button("session-action");
+    suspend.set_label("Suspend");
+    suspend.connect_clicked(|_| {
+        thread::spawn(|| {
+            telemetry::spawn("hyprlock", &[]);
+            thread::sleep(Duration::from_millis(500));
+            telemetry::spawn("systemctl", &["suspend"]);
+        });
+    });
+    let hibernate = button("session-action disabled");
+    hibernate.set_label("Hibernate");
+    hibernate.set_sensitive(false);
+    hibernate.set_tooltip_text(Some(
+        "Disabled: persistent swap and resume support are not configured",
+    ));
+    let logout = confirmed_action("Log out", "hyprctl", &["dispatch", "hl.dsp.exit()"]);
+    let reboot = confirmed_action("Reboot", "systemctl", &["reboot"]);
+    let poweroff = confirmed_action("Power off", "systemctl", &["poweroff"]);
+    for (index, action) in [&lock, &suspend, &hibernate, &logout, &reboot, &poweroff]
+        .into_iter()
+        .enumerate()
+    {
+        action.set_hexpand(true);
+        footer.attach(action, (index % 3) as i32, (index / 3) as i32, 1, 1);
+    }
+    root.pack_end(&footer, false, false, 0);
+    win.add(&root);
+
+    let refresh_win = win.clone();
+    glib::timeout_add_local(Duration::from_secs(3), move || {
+        if refresh_win.is_visible() {
+            events::refresh_extended_system(&updates);
+        }
+        glib::Continue(true)
+    });
+    SystemPanelUi {
+        window: win,
+        cpu,
+        memory,
+        temperature,
+        storage,
+        uptime,
+        brightness,
+        brightness_value,
+        microphone,
+        microphone_value,
+        microphone_mute,
+        microphone_device,
+        microphone_apps,
+        syncing_brightness,
+        syncing_microphone,
+    }
+}
+
+fn format_uptime(seconds: u64) -> String {
+    let days = seconds / 86_400;
+    let hours = (seconds % 86_400) / 3_600;
+    let minutes = (seconds % 3_600) / 60;
+    if days > 0 {
+        format!("{days}d {hours}h")
+    } else {
+        format!("{hours}h {minutes}m")
+    }
+}
+
 fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<NotificationMeta>>>) {
     for child in list.children() {
         list.remove(&child);
@@ -605,7 +859,7 @@ fn refresh_notification_rows(list: &gtk::Box, metadata: &Rc<RefCell<VecDeque<Not
                 (m.app.is_empty() || item.app.contains(&m.app) || m.app.contains(&item.app))
                     && (m.summary.is_empty() || m.summary == item.summary)
             })
-            .map(|m| m.workspace);
+            .and_then(|m| m.workspace);
         let id = item.id;
         let tip = target
             .map(|w| format!("Open from workspace {w}"))
@@ -660,6 +914,7 @@ fn create_notification_panel(
         telemetry::spawn("dunstctl", &["history-clear"]);
         indicator.set_label("󰂚");
         indicator.style_context().remove_class("unread");
+        let _ = clear_updates.send(ModuleUpdate::ClearWorkspaceAlerts);
         refresh_notifications_after(clear_updates.clone(), 75);
     });
     title.pack_start(&heading, true, true, 0);
@@ -679,11 +934,7 @@ fn create_notification_panel(
     (win, list)
 }
 
-fn monitor_notifications(
-    tx: glib::Sender<NotificationMeta>,
-    updates: glib::Sender<ModuleUpdate>,
-    state: Rc<RefCell<Snapshot>>,
-) {
+fn monitor_notifications(tx: glib::Sender<NotificationMeta>, updates: glib::Sender<ModuleUpdate>) {
     glib::MainContext::default().spawn_local(async move { loop {
         let result: zbus::Result<()> = async {
             let connection = zbus::Connection::session().await?;
@@ -692,13 +943,33 @@ fn monitor_notifications(
                 "type='signal',interface='org.freedesktop.Notifications',member='NotificationClosed'",
             ];
             connection.call_method(Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus.Monitoring"), "BecomeMonitor", &(&rules[..], 0u32)).await?;
-            let mut stream = zbus::MessageStream::from(connection);
+            let mut stream = zbus::MessageStream::from(connection.clone());
             while let Some(message) = stream.try_next().await? {
                 if message.interface().as_ref().map(|v| v.as_str()) != Some("org.freedesktop.Notifications") { continue; }
                 if message.member().as_ref().map(|v| v.as_str()) == Some("Notify") {
                     type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, zbus::zvariant::OwnedValue>, i32);
-                    if let Ok((app, _, _, summary, _, _, _, _)) = message.body::<NotifyBody>() {
-                        let workspace = state.borrow().workspace.max(1);
+                    if let Ok((app, _, _, summary, _, _, hints, _)) = message.body::<NotifyBody>() {
+                        let desktop_entry = hints.get("desktop-entry")
+                            .and_then(|value| <&str>::try_from(value).ok())
+                            .map(str::to_string);
+                        let hinted_pid = hints.get("sender-pid")
+                            .or_else(|| hints.get("pid"))
+                            .and_then(|value| u32::try_from(value).ok());
+                        let sender = message.header().ok()
+                            .and_then(|header| header.sender().ok().flatten().map(ToString::to_string));
+                        let pid = if hinted_pid.is_some() { hinted_pid } else if let Some(sender) = sender {
+                            connection.call_method(
+                                Some("org.freedesktop.DBus"),
+                                "/org/freedesktop/DBus",
+                                Some("org.freedesktop.DBus"),
+                                "GetConnectionUnixProcessID",
+                                &(sender,),
+                            ).await.ok().and_then(|reply| reply.body::<u32>().ok())
+                        } else { None };
+                        let workspace = telemetry::notification_workspace(
+                            &telemetry::NotificationIdentifiers { pid, desktop_entry, app: app.clone() },
+                            &telemetry::hypr_clients(),
+                        );
                         let _ = tx.send(NotificationMeta { app, summary, workspace });
                     }
                 }
@@ -823,11 +1094,34 @@ fn build_bar(
         workspaces.pack_start(&b, false, false, 0);
         workspace_buttons.push(b);
     }
-    let hardware_box = hbox(0);
-    hardware_box.style_context().add_class("module");
-    let hardware = label("󰘚 --  󰍛 --  󰔏 --", "hardware");
-    hardware_box.pack_start(&hardware, false, false, 0);
-    left.pack_start(&hardware_box, false, false, 0);
+    let system = button("system");
+    system.set_label("󰒋");
+    system.set_tooltip_text(Some("CPU --% · Memory --% · Temperature --°"));
+    let system_panel = create_system_panel(updates.clone());
+    let system_ref = system_panel.window.clone();
+    let system_bar = win.clone();
+    let system_popups = popups.clone();
+    let system_updates = updates.clone();
+    system.connect_clicked(move |button| {
+        events::refresh_extended_system(&system_updates);
+        system_popups.toggle(&system_ref, button, &system_bar, 430);
+    });
+    left.pack_start(&system, false, false, 0);
+    let microphone_privacy = button("microphone-privacy");
+    microphone_privacy.set_label("󰍬");
+    microphone_privacy.set_no_show_all(true);
+    microphone_privacy.hide();
+    let mic_ref = system_panel.window.clone();
+    let mic_bar = win.clone();
+    let mic_popups = popups.clone();
+    let mic_scale = system_panel.microphone.clone();
+    let mic_updates = updates.clone();
+    microphone_privacy.connect_clicked(move |button| {
+        events::refresh_extended_system(&mic_updates);
+        mic_popups.toggle(&mic_ref, button, &mic_bar, 430);
+        mic_scale.grab_focus();
+    });
+    left.pack_start(&microphone_privacy, false, false, 0);
     let idle = button("idle");
     idle.set_label("󰌽");
     idle.set_tooltip_text(Some("Idle inhibitor · click to toggle"));
@@ -1018,7 +1312,9 @@ fn build_bar(
         win,
         Ui {
             workspace_buttons,
-            hardware,
+            system,
+            microphone_privacy,
+            system_panel,
             clock_time,
             clock_date,
             input,
@@ -1039,11 +1335,19 @@ fn build_bar(
 fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
     if matches!(
         update,
-        ModuleUpdate::Workspace(_) | ModuleUpdate::WorkspaceApps(_)
+        ModuleUpdate::Workspace(_)
+            | ModuleUpdate::WorkspaceApps(_)
+            | ModuleUpdate::WorkspaceAlert { .. }
+            | ModuleUpdate::WorkspaceAlertPulse { .. }
+            | ModuleUpdate::ClearWorkspaceAlerts
     ) {
         for (idx, b) in ui.workspace_buttons.iter().enumerate() {
             let apps = s.workspace_apps.get(idx).map(Vec::as_slice).unwrap_or(&[]);
-            b.set_visible(idx < 3 || !apps.is_empty() || s.workspace == (idx + 1) as i32);
+            let alerted = s.workspace_alerts.get(idx).copied().unwrap_or(false);
+            let pulse = s.workspace_alert_pulses.get(idx).copied().unwrap_or(false);
+            b.set_visible(
+                idx < 3 || !apps.is_empty() || alerted || s.workspace == (idx + 1) as i32,
+            );
             b.set_label(&workspace_label(idx, apps));
             b.set_tooltip_text(Some(&if apps.is_empty() {
                 format!("Workspace {}", idx + 1)
@@ -1055,11 +1359,78 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
             } else {
                 b.style_context().remove_class("active");
             }
+            if alerted && pulse && s.workspace != (idx + 1) as i32 {
+                b.style_context().add_class("notification-alert");
+            } else {
+                b.style_context().remove_class("notification-alert");
+            }
         }
     }
     if matches!(update, ModuleUpdate::Metrics { .. }) {
-        ui.hardware
-            .set_text(&format!("󰘚 {}%  󰍛 {}%  󰔏 {}°", s.cpu, s.mem, s.temp));
+        ui.system.set_tooltip_text(Some(&format!(
+            "CPU {}% · Memory {}% · Temperature {}°C",
+            s.cpu, s.mem, s.temp
+        )));
+        ui.system_panel.cpu.set_text(&format!("{}%", s.cpu));
+        ui.system_panel.memory.set_text(&format!("{}%", s.mem));
+        ui.system_panel
+            .temperature
+            .set_text(&format!("{}°C", s.temp));
+    }
+    if matches!(update, ModuleUpdate::ExtendedSystem { .. }) {
+        ui.system_panel.storage.set_text(&format!("{}%", s.storage));
+        ui.system_panel.uptime.set_text(&format_uptime(s.uptime));
+    }
+    if matches!(update, ModuleUpdate::Brightness(_)) {
+        ui.system_panel.syncing_brightness.set(true);
+        ui.system_panel.brightness.set_value(s.brightness as f64);
+        ui.system_panel.syncing_brightness.set(false);
+        ui.system_panel
+            .brightness_value
+            .set_text(&format!("{}%", s.brightness));
+    }
+    if matches!(update, ModuleUpdate::Microphone { .. }) {
+        ui.system_panel.syncing_microphone.set(true);
+        ui.system_panel
+            .microphone
+            .set_value(s.microphone_volume as f64);
+        ui.system_panel.syncing_microphone.set(false);
+        ui.system_panel
+            .microphone_value
+            .set_text(&format!("{}%", s.microphone_volume));
+        ui.system_panel
+            .microphone_mute
+            .set_label(if s.microphone_muted { "󰍭" } else { "󰍬" });
+        ui.system_panel
+            .microphone_mute
+            .set_tooltip_text(Some(if s.microphone_muted {
+                "Unmute microphone"
+            } else {
+                "Mute microphone"
+            }));
+        ui.system_panel
+            .microphone_device
+            .set_text(if s.microphone_device.is_empty() {
+                "No input device"
+            } else {
+                &s.microphone_device
+            });
+        ui.system_panel
+            .microphone_apps
+            .set_text(&if s.microphone_apps.is_empty() {
+                "No applications are using the microphone".into()
+            } else {
+                format!("In use by: {}", s.microphone_apps.join(", "))
+            });
+        let capturing = !s.microphone_apps.is_empty();
+        ui.microphone_privacy.set_visible(capturing);
+        ui.microphone_privacy
+            .set_label(if s.microphone_muted { "󰍭" } else { "󰍬" });
+        ui.microphone_privacy.set_tooltip_text(Some(&if capturing {
+            format!("Microphone in use by:\n{}", s.microphone_apps.join("\n"))
+        } else {
+            "Microphone is not in use".into()
+        }));
     }
     if matches!(update, ModuleUpdate::Network { .. }) {
         ui.network_icon.set_text(&s.network_icon);
@@ -1275,7 +1646,44 @@ fn main() -> Result<()> {
     let (candidate_win, candidate_root) = create_candidate_window();
     let meta_ref = metadata.clone();
     let meta_ui = ui.clone();
-    meta_rx.attach(None, move |meta| {
+    let alert_state = state.clone();
+    let alert_updates = update_tx.clone();
+    let alert_generations = Rc::new((0..10).map(|_| Cell::new(0u64)).collect::<Vec<_>>());
+    let meta_generations = alert_generations.clone();
+    meta_rx.attach(None, move |meta: NotificationMeta| {
+        if let Some(workspace) = meta
+            .workspace
+            .filter(|workspace| *workspace != alert_state.borrow().workspace)
+        {
+            if let Some(generation) = meta_generations.get((workspace - 1).max(0) as usize) {
+                let token = generation.get().wrapping_add(1);
+                generation.set(token);
+                let _ = alert_updates.send(ModuleUpdate::WorkspaceAlert {
+                    workspace,
+                    active: true,
+                });
+                for (delay, active) in [
+                    (180, false),
+                    (360, true),
+                    (540, false),
+                    (720, true),
+                    (900, false),
+                    (1080, true),
+                ] {
+                    let generations = meta_generations.clone();
+                    let updates = alert_updates.clone();
+                    glib::timeout_add_local_once(Duration::from_millis(delay), move || {
+                        if generations
+                            .get((workspace - 1) as usize)
+                            .is_some_and(|value| value.get() == token)
+                        {
+                            let _ = updates
+                                .send(ModuleUpdate::WorkspaceAlertPulse { workspace, active });
+                        }
+                    });
+                }
+            }
+        }
         let mut values = meta_ref.borrow_mut();
         values.push_back(meta);
         while values.len() > 100 {
@@ -1311,17 +1719,46 @@ fn main() -> Result<()> {
     });
     let update_ui_ref = ui.clone();
     let update_state = state.clone();
+    let update_generations = alert_generations.clone();
     update_rx.attach(None, move |value| {
         let mut current = update_state.borrow_mut();
         let render = value.clone();
         value.apply(&mut current);
+        if let ModuleUpdate::Workspace(workspace) = &render {
+            if current.workspace_alerts.len() < 10 {
+                current.workspace_alerts.resize(10, false);
+            }
+            if current.workspace_alert_pulses.len() < 10 {
+                current.workspace_alert_pulses.resize(10, false);
+            }
+            if let Some(alert) = current
+                .workspace_alerts
+                .get_mut((*workspace - 1).max(0) as usize)
+            {
+                *alert = false;
+            }
+            if let Some(pulse) = current
+                .workspace_alert_pulses
+                .get_mut((*workspace - 1).max(0) as usize)
+            {
+                *pulse = false;
+            }
+            if let Some(generation) = update_generations.get((*workspace - 1).max(0) as usize) {
+                generation.set(generation.get().wrapping_add(1));
+            }
+        } else if matches!(render, ModuleUpdate::ClearWorkspaceAlerts) {
+            for generation in update_generations.iter() {
+                generation.set(generation.get().wrapping_add(1));
+            }
+        }
         update_ui(&update_ui_ref, &current, &render);
         glib::Continue(true)
     });
     schedule_clock(ui.clone());
-    monitor_notifications(meta_tx, update_tx.clone(), state);
+    monitor_notifications(meta_tx, update_tx.clone());
     events::start_workspace(update_tx.clone());
     events::start_audio(update_tx.clone());
+    events::start_brightness(update_tx.clone());
     events::start_metrics(update_tx.clone(), config.refresh.metrics_seconds);
     events::start_llm(update_tx.clone(), config.refresh.llm_seconds);
     events::start_reconcile(update_tx.clone(), config.refresh.reconcile_seconds);

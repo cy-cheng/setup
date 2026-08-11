@@ -6,6 +6,21 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::UNIX_EPOCH;
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HyprClient {
+    pub pid: u32,
+    pub workspace: i32,
+    pub class: String,
+    pub initial_class: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NotificationIdentifiers {
+    pub pid: Option<u32>,
+    pub desktop_entry: Option<String>,
+    pub app: String,
+}
+
 #[derive(Clone, Default)]
 pub struct CpuSample {
     pub idle: u64,
@@ -17,6 +32,13 @@ pub struct Snapshot {
     pub cpu: u64,
     pub mem: u64,
     pub temp: i64,
+    pub storage: u64,
+    pub uptime: u64,
+    pub brightness: u64,
+    pub microphone_volume: u64,
+    pub microphone_muted: bool,
+    pub microphone_device: String,
+    pub microphone_apps: Vec<String>,
     pub battery: u64,
     pub battery_status: String,
     pub profile: String,
@@ -24,6 +46,8 @@ pub struct Snapshot {
     pub muted: bool,
     pub workspace: i32,
     pub workspace_apps: Vec<Vec<String>>,
+    pub workspace_alerts: Vec<bool>,
+    pub workspace_alert_pulses: Vec<bool>,
     pub network_name: String,
     pub network_icon: String,
     pub network_tooltip: String,
@@ -37,6 +61,96 @@ pub struct Snapshot {
     pub codex_today: u64,
     pub active_llms: u64,
     pub idle_inhibited: bool,
+}
+
+pub fn normalize_notification_identifier(value: &str) -> String {
+    let value = value
+        .trim()
+        .trim_end_matches(".desktop")
+        .rsplit('/')
+        .next()
+        .unwrap_or_default();
+    value
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn identifier_variants(value: &str) -> Vec<String> {
+    let stripped = value.trim().trim_end_matches(".desktop");
+    let mut values = vec![normalize_notification_identifier(stripped)];
+    if let Some(last) = stripped.rsplit(['.', '/']).next() {
+        values.push(normalize_notification_identifier(last));
+    }
+    values.retain(|value| !value.is_empty());
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn unique_workspace(matches: impl Iterator<Item = i32>) -> Option<i32> {
+    let mut workspaces: Vec<i32> = matches.filter(|value| *value > 0).collect();
+    workspaces.sort_unstable();
+    workspaces.dedup();
+    (workspaces.len() == 1).then(|| workspaces[0])
+}
+
+pub fn notification_workspace(
+    identifiers: &NotificationIdentifiers,
+    clients: &[HyprClient],
+) -> Option<i32> {
+    if let Some(pid) = identifiers.pid {
+        let matches: Vec<_> = clients.iter().filter(|client| client.pid == pid).collect();
+        if !matches.is_empty() {
+            return unique_workspace(matches.into_iter().map(|client| client.workspace));
+        }
+    }
+    for identifier in [identifiers.desktop_entry.as_deref(), Some(&identifiers.app)]
+        .into_iter()
+        .flatten()
+    {
+        let wanted = identifier_variants(identifier);
+        if wanted.is_empty() {
+            continue;
+        }
+        let matches: Vec<_> = clients
+            .iter()
+            .filter(|client| {
+                [&client.class, &client.initial_class]
+                    .into_iter()
+                    .any(|class| {
+                        let class = identifier_variants(class);
+                        wanted.iter().any(|value| class.contains(value))
+                    })
+            })
+            .collect();
+        if !matches.is_empty() {
+            return unique_workspace(matches.into_iter().map(|client| client.workspace));
+        }
+    }
+    None
+}
+
+pub fn hypr_clients() -> Vec<HyprClient> {
+    let Ok(clients) = serde_json::from_str::<Value>(&output("hyprctl", &["clients", "-j"])) else {
+        return Vec::new();
+    };
+    clients
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|client| HyprClient {
+            pid: client["pid"].as_u64().unwrap_or_default() as u32,
+            workspace: client["workspace"]["id"].as_i64().unwrap_or_default() as i32,
+            class: client["class"].as_str().unwrap_or_default().to_string(),
+            initial_class: client["initialClass"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+        })
+        .filter(|client| client.workspace > 0)
+        .collect()
 }
 
 #[derive(Clone, Debug, Default)]
@@ -187,6 +301,123 @@ pub fn audio() -> (u64, bool) {
         .unwrap_or(0)
         .min(100);
     (volume, value.contains("MUTED"))
+}
+
+pub fn microphone() -> (u64, bool, String, Vec<String>) {
+    let value = output("wpctl", &["get-volume", "@DEFAULT_AUDIO_SOURCE@"]);
+    let volume = value
+        .split_whitespace()
+        .find_map(|part| part.parse::<f64>().ok())
+        .map(|part| (part * 100.0).round() as u64)
+        .unwrap_or(0)
+        .min(100);
+    let muted = value.contains("MUTED");
+    let default_source = output("pactl", &["get-default-source"]);
+    let sources =
+        serde_json::from_str::<Value>(&output("pactl", &["-f", "json", "list", "sources"]))
+            .ok()
+            .and_then(|value| value.as_array().cloned())
+            .unwrap_or_default();
+    let device = sources
+        .iter()
+        .find(|source| source.get("name").and_then(Value::as_str) == Some(&default_source))
+        .and_then(|source| source.get("description").and_then(Value::as_str))
+        .unwrap_or(&default_source)
+        .to_string();
+    let raw = output("pactl", &["-f", "json", "list", "source-outputs"]);
+    let apps = serde_json::from_str::<Value>(&raw)
+        .ok()
+        .and_then(|value| value.as_array().cloned())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|stream| {
+            let source_index = stream.get("source").and_then(Value::as_u64);
+            let source_is_monitor = source_index
+                .and_then(|index| {
+                    sources
+                        .iter()
+                        .find(|source| source.get("index").and_then(Value::as_u64) == Some(index))
+                })
+                .is_some_and(|source| {
+                    source
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|name| name.ends_with(".monitor"))
+                        || source
+                            .get("monitor_of_sink")
+                            .is_some_and(|value| !value.is_null())
+                });
+            let properties = stream.get("properties")?;
+            let app = properties
+                .get("application.name")
+                .and_then(Value::as_str)
+                .or_else(|| properties.get("media.name").and_then(Value::as_str))
+                .unwrap_or_default();
+            let node = properties
+                .get("node.name")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let inspect = [app, node].join(" ").to_lowercase();
+            (!source_is_monitor
+                && !app.is_empty()
+                && !inspect.contains("monitor")
+                && !inspect.contains("nixie shell")
+                && !inspect.contains("nixie-shell")
+                && !inspect.contains("peak detect"))
+            .then(|| app.to_string())
+        })
+        .fold(Vec::new(), |mut apps, app| {
+            if !apps.contains(&app) {
+                apps.push(app);
+            }
+            apps
+        });
+    (volume, muted, device, apps)
+}
+
+pub fn backlight_path() -> Option<PathBuf> {
+    fs::read_dir("/sys/class/backlight")
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path().join("brightness"))
+        .find(|path| path.exists())
+}
+
+pub fn brightness() -> u64 {
+    let Some(path) = backlight_path() else {
+        return 0;
+    };
+    let current = read(&path).parse::<u64>().unwrap_or(0);
+    let maximum = read(path.with_file_name("max_brightness"))
+        .parse::<u64>()
+        .unwrap_or(0);
+    if maximum == 0 {
+        0
+    } else {
+        (100 * current / maximum).min(100)
+    }
+}
+
+pub fn storage_percent() -> u64 {
+    let path = std::ffi::CString::new("/").expect("root path");
+    let mut stats = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    if unsafe { libc::statvfs(path.as_ptr(), stats.as_mut_ptr()) } != 0 {
+        return 0;
+    }
+    let stats = unsafe { stats.assume_init() };
+    if stats.f_blocks == 0 {
+        return 0;
+    }
+    (100 * (stats.f_blocks.saturating_sub(stats.f_bavail)) / stats.f_blocks).min(100)
+}
+
+pub fn uptime_seconds() -> u64 {
+    fs::read_to_string("/proc/uptime")
+        .unwrap_or_default()
+        .split_whitespace()
+        .next()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(0.0) as u64
 }
 
 pub fn network() -> (String, String, String) {
@@ -440,4 +671,71 @@ pub fn history() -> Vec<HistoryItem> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn client(pid: u32, workspace: i32, class: &str) -> HyprClient {
+        HyprClient {
+            pid,
+            workspace,
+            class: class.into(),
+            initial_class: String::new(),
+        }
+    }
+
+    #[test]
+    fn normalizes_notification_identifiers() {
+        assert_eq!(
+            normalize_notification_identifier(" org.mozilla.Firefox.desktop "),
+            "orgmozillafirefox"
+        );
+        assert_eq!(
+            normalize_notification_identifier("/usr/share/applications/discord.desktop"),
+            "discord"
+        );
+    }
+
+    #[test]
+    fn pid_matching_has_priority() {
+        let clients = vec![client(42, 3, "firefox"), client(7, 8, "discord")];
+        let ids = NotificationIdentifiers {
+            pid: Some(42),
+            desktop_entry: Some("discord.desktop".into()),
+            app: "Discord".into(),
+        };
+        assert_eq!(notification_workspace(&ids, &clients), Some(3));
+    }
+
+    #[test]
+    fn matches_desktop_entry_and_application_class() {
+        let clients = vec![client(1, 4, "firefox"), client(2, 7, "discord")];
+        let firefox = NotificationIdentifiers {
+            desktop_entry: Some("org.mozilla.firefox.desktop".into()),
+            ..Default::default()
+        };
+        let discord = NotificationIdentifiers {
+            app: "Discord".into(),
+            ..Default::default()
+        };
+        assert_eq!(notification_workspace(&firefox, &clients), Some(4));
+        assert_eq!(notification_workspace(&discord, &clients), Some(7));
+    }
+
+    #[test]
+    fn ambiguous_and_unmatched_notifications_are_unassigned() {
+        let clients = vec![client(1, 2, "firefox"), client(2, 5, "firefox")];
+        let firefox = NotificationIdentifiers {
+            app: "Firefox".into(),
+            ..Default::default()
+        };
+        let unknown = NotificationIdentifiers {
+            app: "Unknown".into(),
+            ..Default::default()
+        };
+        assert_eq!(notification_workspace(&firefox, &clients), None);
+        assert_eq!(notification_workspace(&unknown, &clients), None);
+    }
 }

@@ -49,6 +49,22 @@ button.idle.active, button.idle.active:hover {
   color: @bg;
 }
 
+button.power.charging, button.power.charging:hover {
+  border-color: alpha(@success, 0.78);
+  color: @success;
+}
+
+button.power.battery-low, button.power.battery-low:hover {
+  border-color: alpha(@critical, 0.78);
+  color: @critical;
+}
+
+button.power.battery-critical, button.power.battery-critical:hover {
+  border-color: @critical;
+  background: alpha(@critical, 0.16);
+  color: @critical;
+}
+
 .workspace { min-width: 27px; min-height: 38px; padding: 0; color: @muted; }
 .workspace label { padding: 0; font-size: 20px; }
 .workspace.active { background: @amber; color: @bg; }

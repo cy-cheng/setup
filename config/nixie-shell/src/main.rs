@@ -190,6 +190,30 @@ fn workspace_label(index: usize, apps: &[String]) -> String {
     }
 }
 
+fn battery_is_charging(status: &str) -> bool {
+    status.trim().eq_ignore_ascii_case("charging")
+}
+
+fn battery_is_discharging(status: &str) -> bool {
+    status.trim().eq_ignore_ascii_case("discharging")
+}
+
+fn battery_icon(percent: u64, status: &str) -> &'static str {
+    if battery_is_charging(status) {
+        "󰂄"
+    } else if percent >= 90 {
+        "󰁹"
+    } else if percent >= 70 {
+        "󰂀"
+    } else if percent >= 40 {
+        "󰁾"
+    } else if percent >= 20 {
+        "󰁼"
+    } else {
+        "󰂎"
+    }
+}
+
 #[derive(Clone)]
 struct Ui {
     workspace_buttons: Vec<gtk::Button>,
@@ -1099,17 +1123,7 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
         update,
         ModuleUpdate::Battery { .. } | ModuleUpdate::Profile(_)
     ) {
-        let bat_icon = if s.battery >= 90 {
-            "󰁹"
-        } else if s.battery >= 70 {
-            "󰂀"
-        } else if s.battery >= 40 {
-            "󰁾"
-        } else if s.battery >= 20 {
-            "󰁼"
-        } else {
-            "󰂎"
-        };
+        let bat_icon = battery_icon(s.battery, &s.battery_status);
         let profile_icon = if s.profile == "power-saver" {
             "󰌪"
         } else if s.profile == "performance" {
@@ -1119,6 +1133,17 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
         };
         ui.power
             .set_label(&format!("{} {} {}%", profile_icon, bat_icon, s.battery));
+        let power_style = ui.power.style_context();
+        power_style.remove_class("charging");
+        power_style.remove_class("battery-low");
+        power_style.remove_class("battery-critical");
+        if battery_is_charging(&s.battery_status) {
+            power_style.add_class("charging");
+        } else if battery_is_discharging(&s.battery_status) && s.battery <= 10 {
+            power_style.add_class("battery-critical");
+        } else if battery_is_discharging(&s.battery_status) && s.battery <= 20 {
+            power_style.add_class("battery-low");
+        }
         ui.power.set_tooltip_text(Some(&format!(
             "Battery: {}% · {}\nPower mode: {}\nClick to cycle",
             s.battery, s.battery_status, s.profile

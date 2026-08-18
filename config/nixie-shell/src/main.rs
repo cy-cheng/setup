@@ -503,6 +503,7 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
         if has_prev {
             page_parts.push("↑ previous");
         }
+        page_parts.push("Shift+A–Y 選字");
         page_parts.push("Ctrl+Enter 原樣輸出");
         page_parts.push(if has_next { "↓ more" } else { "end" });
         let footer = label(
@@ -526,7 +527,10 @@ fn update_candidates(win: &gtk::Window, root: &gtk::Box, message: FcitxMessage) 
             row.pack_start(&value, false, false, 0);
         }
         root.pack_start(&row, false, false, 0);
-        let hint = label("Ctrl+Enter  注音原樣輸出", "candidate-page");
+        let hint = label(
+            "Shift+A–G  選字  ·  Ctrl+Enter  注音原樣輸出",
+            "candidate-page",
+        );
         hint.set_xalign(0.0);
         root.pack_start(&hint, false, false, 0);
     }
@@ -1052,6 +1056,7 @@ fn build_bar(
     updates: glib::Sender<ModuleUpdate>,
 ) -> (gtk::Window, Ui) {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
+    enable_transparency(&win);
     win.style_context().add_class("nixie-bar");
     layer_shell::init_for_window(&win);
     layer_shell::set_namespace(&win, "nixie-shell");

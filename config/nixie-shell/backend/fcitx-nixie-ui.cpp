@@ -155,6 +155,7 @@ private:
         auto *ic = event.inputContext();
         if (!ic) return;
         const auto key = event.key();
+        const auto normalizedKey = key.normalize();
         auto &panel = ic->inputPanel();
         if (key.check(FcitxKey_Return, fcitx::KeyState::Ctrl) ||
             key.check(FcitxKey_KP_Enter, fcitx::KeyState::Ctrl)) {
@@ -225,10 +226,14 @@ private:
                 setCursor(list, 0);
             }
             event.filterAndAccept();
-        } else if (expanded_ && key.states() == fcitx::KeyState::NoState &&
-                   key.sym() >= FcitxKey_a && key.sym() <= FcitxKey_y) {
-            const int index = static_cast<int>(key.sym() - FcitxKey_a);
-            if (index < list->size()) {
+        } else if (normalizedKey.states() == fcitx::KeyState::NoState &&
+                   normalizedKey.sym() >= FcitxKey_A && normalizedKey.sym() <= FcitxKey_Y) {
+            // Fcitx normalizes Shift+A..Y to an uppercase keysym without the
+            // Shift state. Match the uppercase symbol shown in the candidate
+            // labels; bare lowercase letters must remain available to the IM.
+            const int index = static_cast<int>(normalizedKey.sym() - FcitxKey_A);
+            const int visible = std::min(list->size(), expanded_ ? 25 : 7);
+            if (index < visible) {
                 list->candidate(index).select(ic);
                 expanded_ = false;
                 page_ = 1;

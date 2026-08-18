@@ -415,11 +415,11 @@ class NativeCandidatePopup::Impl {
         }
 
         const int rowsHeight = expanded ? 5 * cellHeight + 4 * gap : cellHeight;
-        std::string footer = "CTRL+ENTER  注音原樣輸出";
+        std::string footer = "SHIFT+A–G  選字   CTRL+ENTER  注音原樣輸出";
         if (expanded) {
             footer = "PAGE " + std::to_string(std::max(1, page)) + "   ";
             if (hasPrev) footer += "↑ PREVIOUS   ";
-            footer += "CTRL+ENTER  原樣輸出";
+            footer += "SHIFT+A–Y  選字   CTRL+ENTER  原樣輸出";
             if (hasNext) footer += "   ↓ MORE";
         }
         drawText(cr, footer, padding + 3, y + rowsHeight + 6, logicalWidth - 2 * padding, 10.5, false, false);

@@ -4,6 +4,7 @@ use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
 use std::time::UNIX_EPOCH;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -174,12 +175,32 @@ pub fn output(program: &str, args: &[&str]) -> String {
 }
 
 pub fn spawn(program: &str, args: &[&str]) {
-    let _ = Command::new(program)
-        .args(args)
+    let mut command = Command::new(program);
+    command.args(args);
+    spawn_command(&mut command);
+}
+
+pub fn spawn_command(command: &mut Command) {
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn();
+    if let Ok(mut child) = child {
+        thread::spawn(move || {
+            let _ = child.wait();
+        });
+    }
+}
+
+pub fn run(program: &str, args: &[&str]) -> bool {
+    Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
 }
 
 pub fn workspace_apps() -> Vec<Vec<String>> {

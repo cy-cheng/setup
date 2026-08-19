@@ -17,11 +17,12 @@ use std::collections::VecDeque;
 use std::fs;
 use std::os::unix::net::UnixDatagram;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::thread;
 use std::time::Duration;
 use telemetry::Snapshot;
+
+const LOCK_SESSION_HELPER: &str = "/home/brine/.config/hypr/scripts/lock-session.sh";
 
 #[derive(Clone, Deserialize)]
 struct Commands {
@@ -312,12 +313,9 @@ fn run_command(command: &str) {
     if program.is_empty() {
         return;
     }
-    let _ = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
+    let mut command = std::process::Command::new(program);
+    command.args(args);
+    telemetry::spawn_command(&mut command);
 }
 
 fn run_positioned_command(command: &str, left: i32) {
@@ -325,13 +323,9 @@ fn run_positioned_command(command: &str, left: i32) {
     if program.is_empty() {
         return;
     }
-    let _ = Command::new(program)
-        .args(args)
-        .env("NIXIE_POPUP_LEFT", left.to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
+    let mut command = std::process::Command::new(program);
+    command.args(args).env("NIXIE_POPUP_LEFT", left.to_string());
+    telemetry::spawn_command(&mut command);
 }
 
 fn focus_workspace(workspace: i32) {
@@ -756,14 +750,14 @@ fn create_system_panel(updates: glib::Sender<ModuleUpdate>) -> SystemPanelUi {
     footer.style_context().add_class("session-footer");
     let lock = button("session-action");
     lock.set_label("Lock");
-    lock.connect_clicked(|_| telemetry::spawn("hyprlock", &[]));
+    lock.connect_clicked(|_| telemetry::spawn(LOCK_SESSION_HELPER, &[]));
     let suspend = button("session-action");
     suspend.set_label("Suspend");
     suspend.connect_clicked(|_| {
         thread::spawn(|| {
-            telemetry::spawn("hyprlock", &[]);
-            thread::sleep(Duration::from_millis(500));
-            telemetry::spawn("systemctl", &["suspend"]);
+            if telemetry::run(LOCK_SESSION_HELPER, &[]) {
+                telemetry::spawn("systemctl", &["suspend"]);
+            }
         });
     });
     let hibernate = button("session-action disabled");

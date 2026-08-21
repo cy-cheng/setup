@@ -29,6 +29,12 @@ window.nixie-desktop {
   border-radius: 13px;
   color: @text;
 }
+window.nixie-desktop button {
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+  transition: none;
+}
 .desktop-card { padding: 15px; }
 .desktop-title { color: @amber; font-size: 17px; font-weight: 700; }
 .desktop-summary, .calendar-status, .calendar-event-time, .desktop-empty {
@@ -44,7 +50,7 @@ window.nixie-desktop {
   color: @text;
 }
 .todo-entry:focus { border-color: @amber_dim; }
-.todo-add, .todo-remove, .calendar-refresh {
+.todo-add, .todo-remove, .calendar-refresh, .calendar-add {
   min-width: 32px;
   min-height: 32px;
   padding: 0;
@@ -53,9 +59,12 @@ window.nixie-desktop {
   background: alpha(@raised, 0.72);
   color: @amber;
 }
-.todo-add:hover, .todo-remove:hover, .calendar-refresh:hover {
+.todo-add:hover, .todo-add:focus, .todo-add:active,
+.calendar-refresh:hover, .calendar-refresh:focus, .calendar-refresh:active,
+.calendar-add:hover, .calendar-add:focus, .calendar-add:active {
   border-color: @amber_dim;
-  background: alpha(@amber, 0.13);
+  background: alpha(@raised, 0.96);
+  color: @amber;
 }
 .todo-row { padding: 5px 3px; }
 window.nixie-desktop scrolledwindow,
@@ -73,7 +82,11 @@ window.nixie-desktop list { background: transparent; border: none; }
 }
 .todo-row checkbutton check:checked { background: @amber; color: @bg; }
 .todo-remove { color: @muted; border-color: transparent; background: transparent; }
-.todo-remove:hover { color: @critical; border-color: alpha(@critical, 0.48); }
+.todo-remove:hover, .todo-remove:focus, .todo-remove:active {
+  color: @critical;
+  border-color: alpha(@critical, 0.48);
+  background: alpha(@raised, 0.88);
+}
 .desktop-separator { margin: 3px 0; background: alpha(@border, 0.62); }
 .calendar-event {
   padding: 7px 9px;
@@ -82,7 +95,11 @@ window.nixie-desktop list { background: transparent; border: none; }
   background: alpha(@raised, 0.48);
   color: @text;
 }
-.calendar-event:hover { border-color: alpha(@amber_dim, 0.65); background: alpha(@amber, 0.11); }
+.calendar-event:hover, .calendar-event:focus, .calendar-event:active {
+  border-color: alpha(@amber_dim, 0.78);
+  background: alpha(@raised, 0.90);
+  color: @amber;
+}
 .calendar-setup {
   padding: 9px;
   border-radius: 8px;
@@ -104,8 +121,32 @@ window.nixie-desktop list { background: transparent; border: none; }
   background: alpha(@raised, 0.68);
   color: @text;
 }
-.calendar-setup button:hover { color: @amber; background: alpha(@amber, 0.12); }
+.calendar-setup button:hover, .calendar-setup button:focus, .calendar-setup button:active {
+  color: @amber;
+  background: alpha(@raised, 0.94);
+}
 .calendar-disconnect { color: @muted; }
+.calendar-feed {
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: alpha(@raised, 0.54);
+  color: @text;
+}
+.calendar-feed label { font-size: 13px; }
+.calendar-feed-remove {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: alpha(@raised, 0.72);
+  color: @muted;
+}
+.calendar-feed-remove:hover, .calendar-feed-remove:focus, .calendar-feed-remove:active {
+  border-color: alpha(@critical, 0.48);
+  background: alpha(@raised, 0.94);
+  color: @critical;
+}
 
 .bar-root { padding: 0 10px; }
 .bar-left, .bar-right { min-height: 42px; }

@@ -27,11 +27,19 @@ struct TodoItem {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CalendarEvent {
+    calendar: String,
     summary: String,
     start: DateTime<Local>,
     end: DateTime<Local>,
     all_day: bool,
     location: String,
+    url: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct CalendarFeed {
+    id: u64,
+    name: String,
     url: String,
 }
 
@@ -50,13 +58,18 @@ struct EventSeed {
 
 enum CalendarUpdate {
     Loading,
-    Events(Vec<CalendarEvent>),
+    Events {
+        events: Vec<CalendarEvent>,
+        feeds: Vec<CalendarFeed>,
+        failed: Vec<String>,
+    },
     Error(String),
     Disconnected,
 }
 
 pub struct DesktopManager {
-    _window: gtk::Window,
+    _todo_window: gtk::Window,
+    _calendar_window: gtk::Window,
 }
 
 fn data_dir() -> PathBuf {
@@ -69,7 +82,13 @@ fn todo_path() -> PathBuf {
     data_dir().join("todos.json")
 }
 
-fn calendar_secret_path() -> PathBuf {
+fn calendar_feeds_path() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("nixie-shell/google-calendars.json")
+}
+
+fn legacy_calendar_secret_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("nixie-shell/google-calendar-url")
@@ -273,6 +292,7 @@ fn occurrence(seed: &EventSeed, start: DateTime<Local>) -> CalendarEvent {
             }
         });
     CalendarEvent {
+        calendar: String::new(),
         summary: seed.summary.clone(),
         start,
         end: start + duration,
@@ -451,64 +471,112 @@ fn parse_calendar(input: &str, now: DateTime<Local>) -> Vec<CalendarEvent> {
     values
 }
 
-fn calendar_url() -> Option<String> {
-    fs::read_to_string(calendar_secret_path())
+fn load_calendar_feeds() -> Vec<CalendarFeed> {
+    if let Some(feeds) = fs::read_to_string(calendar_feeds_path())
+        .ok()
+        .and_then(|value| serde_json::from_str::<Vec<CalendarFeed>>(&value).ok())
+    {
+        let legacy_path = legacy_calendar_secret_path();
+        if legacy_path.exists() {
+            if let Err(error) = fs::remove_file(legacy_path) {
+                log::warn!("remove migrated calendar secret: {error}");
+            }
+        }
+        return feeds;
+    }
+    let legacy_path = legacy_calendar_secret_path();
+    let feeds = fs::read_to_string(&legacy_path)
         .ok()
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+        .filter(|value| valid_calendar_url(value))
+        .map(|url| {
+            vec![CalendarFeed {
+                id: 1,
+                name: "Google Calendar".into(),
+                url,
+            }]
+        })
+        .unwrap_or_default();
+    if !feeds.is_empty() {
+        match save_calendar_feeds(&feeds) {
+            Ok(()) => {
+                if let Err(error) = fs::remove_file(&legacy_path) {
+                    log::warn!("remove migrated calendar secret: {error}");
+                }
+            }
+            Err(error) => log::warn!("migrate calendar secret: {error}"),
+        }
+    }
+    feeds
+}
+
+fn save_calendar_feeds(feeds: &[CalendarFeed]) -> std::io::Result<()> {
+    let value = serde_json::to_vec_pretty(feeds)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    atomic_private_write(&calendar_feeds_path(), &value)
 }
 
 fn valid_calendar_url(value: &str) -> bool {
     value.starts_with("https://")
-        && value.contains("calendar.google.com/")
-        && value.ends_with(".ics")
+        && value.len() > "https://".len()
         && !value.chars().any(char::is_control)
         && !value.contains(['"', '\\'])
+}
+
+fn fetch_ical(url: &str) -> std::io::Result<std::process::Output> {
+    Command::new("curl")
+        .args([
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--location",
+            "--max-time",
+            "20",
+            "--config",
+            "-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .and_then(|mut child| {
+            if let Some(mut input) = child.stdin.take() {
+                writeln!(input, "url = \"{url}\"")?;
+            }
+            child.wait_with_output()
+        })
 }
 
 fn fetch_calendar(sender: glib::Sender<CalendarUpdate>) {
     let _ = sender.send(CalendarUpdate::Loading);
     thread::spawn(move || {
-        let Some(url) = calendar_url() else {
+        let feeds = load_calendar_feeds();
+        if feeds.is_empty() {
             let _ = sender.send(CalendarUpdate::Disconnected);
             return;
-        };
-        let result = Command::new("curl")
-            .args([
-                "--fail",
-                "--silent",
-                "--show-error",
-                "--location",
-                "--max-time",
-                "20",
-                "--config",
-                "-",
-            ])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .and_then(|mut child| {
-                if let Some(mut input) = child.stdin.take() {
-                    writeln!(input, "url = \"{url}\"")?;
+        }
+        let mut events = Vec::new();
+        let mut failed = Vec::new();
+        for feed in &feeds {
+            match fetch_ical(&feed.url) {
+                Ok(output) if output.status.success() => {
+                    let input = String::from_utf8_lossy(&output.stdout);
+                    let mut values = parse_calendar(&input, Local::now());
+                    for event in &mut values {
+                        event.calendar.clone_from(&feed.name);
+                    }
+                    events.extend(values);
                 }
-                child.wait_with_output()
-            });
-        match result {
-            Ok(output) if output.status.success() => {
-                let input = String::from_utf8_lossy(&output.stdout);
-                let _ = sender.send(CalendarUpdate::Events(parse_calendar(&input, Local::now())));
-            }
-            Ok(output) => {
-                let _ = sender.send(CalendarUpdate::Error(format!(
-                    "Request failed ({})",
-                    output.status
-                )));
-            }
-            Err(error) => {
-                let _ = sender.send(CalendarUpdate::Error(error.to_string()));
+                _ => failed.push(feed.name.clone()),
             }
         }
+        events.sort_by_key(|event| event.start);
+        events.truncate(12);
+        let _ = sender.send(CalendarUpdate::Events {
+            events,
+            feeds,
+            failed,
+        });
     });
 }
 
@@ -522,9 +590,13 @@ fn format_event_time(event: &CalendarEvent, now: DateTime<Local>) -> String {
         event.start.format("%a %m/%d").to_string()
     };
     if event.all_day {
-        format!("{prefix} · All day")
+        format!("{} · {prefix} · All day", event.calendar)
     } else {
-        format!("{prefix} · {}", event.start.format("%H:%M"))
+        format!(
+            "{} · {prefix} · {}",
+            event.calendar,
+            event.start.format("%H:%M")
+        )
     }
 }
 
@@ -564,29 +636,58 @@ fn render_events(container: &gtk::Box, events: &[CalendarEvent]) {
     container.show_all();
 }
 
-pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<DesktopManager> {
-    if !enabled {
-        return None;
+fn render_feeds(container: &gtk::Box, sender: &glib::Sender<CalendarUpdate>) {
+    clear_container(container.upcast_ref());
+    for feed in load_calendar_feeds() {
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 7);
+        row.style_context().add_class("calendar-feed");
+        let name = gtk::Label::new(Some(&format!("󰒓  {}", feed.name)));
+        name.set_xalign(0.0);
+        name.set_hexpand(true);
+        let remove = gtk::Button::with_label("󰆴");
+        remove.style_context().add_class("calendar-feed-remove");
+        remove.set_tooltip_text(Some("Remove this calendar"));
+        row.pack_start(&name, true, true, 0);
+        row.pack_end(&remove, false, false, 0);
+        container.pack_start(&row, false, false, 0);
+
+        let id = feed.id;
+        let remove_box = container.clone();
+        let remove_sender = sender.clone();
+        remove.connect_clicked(move |_| {
+            let mut feeds = load_calendar_feeds();
+            feeds.retain(|feed| feed.id != id);
+            if let Err(error) = save_calendar_feeds(&feeds) {
+                let _ = remove_sender.send(CalendarUpdate::Error(error.to_string()));
+                return;
+            }
+            render_feeds(&remove_box, &remove_sender);
+            fetch_calendar(remove_sender.clone());
+        });
     }
+    container.show_all();
+}
+
+fn desktop_window(name: &str, monitor_index: i32, side: Edge) -> gtk::Window {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    window.set_widget_name("nixie-desktop");
+    window.set_widget_name(name);
     window.style_context().add_class("nixie-desktop");
     window.set_app_paintable(true);
     window.set_decorated(false);
     window.set_resizable(false);
-    window.set_default_size(380, -1);
+    window.set_default_size(350, -1);
     if let Some(screen) = gtk::prelude::WidgetExt::screen(&window) {
         if let Some(visual) = screen.rgba_visual() {
             window.set_visual(Some(&visual));
         }
     }
     layer_shell::init_for_window(&window);
-    layer_shell::set_namespace(&window, "nixie-desktop");
+    layer_shell::set_namespace(&window, name);
     layer_shell::set_layer(&window, Layer::Bottom);
-    layer_shell::set_anchor(&window, Edge::Top, true);
-    layer_shell::set_anchor(&window, Edge::Right, true);
-    layer_shell::set_margin(&window, Edge::Top, 72);
-    layer_shell::set_margin(&window, Edge::Right, 24);
+    layer_shell::set_anchor(&window, Edge::Bottom, true);
+    layer_shell::set_anchor(&window, side, true);
+    layer_shell::set_margin(&window, Edge::Bottom, 28);
+    layer_shell::set_margin(&window, side, 24);
     layer_shell::set_exclusive_zone(&window, -1);
     layer_shell::set_keyboard_mode(&window, KeyboardMode::OnDemand);
     if let Some(display) = gdk::Display::default() {
@@ -594,6 +695,14 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
             layer_shell::set_monitor(&window, &monitor);
         }
     }
+    window
+}
+
+pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<DesktopManager> {
+    if !enabled {
+        return None;
+    }
+    let todo_window = desktop_window("nixie-desktop-todo", monitor_index, Edge::Left);
 
     let root = gtk::Box::new(gtk::Orientation::Vertical, 12);
     root.style_context().add_class("desktop-card");
@@ -643,19 +752,26 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     let add_todos = todos.clone();
     add.connect_clicked(move |_| add_todo(&add_entry, &add_list, &add_summary, &add_todos));
 
-    let separator = gtk::Separator::new(gtk::Orientation::Horizontal);
-    separator.style_context().add_class("desktop-separator");
-    root.pack_start(&separator, false, false, 0);
+    todo_window.add(&root);
+    todo_window.show_all();
+
+    let calendar_window = desktop_window("nixie-desktop-calendar", monitor_index, Edge::Right);
+    let root = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    root.style_context().add_class("desktop-card");
 
     let calendar_header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let calendar_title = gtk::Label::new(Some("󰃭  UPCOMING"));
+    let calendar_title = gtk::Label::new(Some("󰃭  CALENDARS"));
     calendar_title.style_context().add_class("desktop-title");
     calendar_title.set_xalign(0.0);
     let refresh = gtk::Button::with_label("󰑐");
     refresh.style_context().add_class("calendar-refresh");
-    refresh.set_tooltip_text(Some("Refresh Google Calendar"));
+    refresh.set_tooltip_text(Some("Refresh all calendars"));
+    let add_calendar = gtk::Button::with_label("＋");
+    add_calendar.style_context().add_class("calendar-add");
+    add_calendar.set_tooltip_text(Some("Add another iCal feed"));
     calendar_header.pack_start(&calendar_title, true, true, 0);
     calendar_header.pack_end(&refresh, false, false, 0);
+    calendar_header.pack_end(&add_calendar, false, false, 0);
     root.pack_start(&calendar_header, false, false, 0);
 
     let calendar_status = gtk::Label::new(Some("Calendar not connected"));
@@ -670,33 +786,32 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     ));
     setup_help.set_xalign(0.0);
     setup_help.set_line_wrap(true);
+    let name_entry = gtk::Entry::new();
+    name_entry.set_placeholder_text(Some("Calendar name (e.g. Personal)"));
     let secret_entry = gtk::Entry::new();
-    secret_entry.set_placeholder_text(Some("Paste the secret .ics address"));
+    secret_entry.set_placeholder_text(Some("Paste an HTTPS iCal address"));
     secret_entry.set_visibility(false);
     let setup_actions = gtk::Box::new(gtk::Orientation::Horizontal, 7);
     let open_settings = gtk::Button::with_label("Open Google settings");
-    let connect = gtk::Button::with_label("Connect");
+    let connect = gtk::Button::with_label("Add calendar");
     setup_actions.pack_start(&open_settings, true, true, 0);
     setup_actions.pack_end(&connect, false, false, 0);
     setup.pack_start(&setup_help, false, false, 0);
+    setup.pack_start(&name_entry, false, false, 0);
     setup.pack_start(&secret_entry, false, false, 0);
     setup.pack_start(&setup_actions, false, false, 0);
     root.pack_start(&setup, false, false, 0);
 
-    let connected_actions = gtk::Box::new(gtk::Orientation::Horizontal, 7);
-    let disconnect = gtk::Button::with_label("Disconnect calendar");
-    disconnect.style_context().add_class("calendar-disconnect");
-    connected_actions.pack_end(&disconnect, false, false, 0);
-    root.pack_start(&connected_actions, false, false, 0);
+    let feeds_box = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    root.pack_start(&feeds_box, false, false, 0);
 
     let events_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
     root.pack_start(&events_box, false, false, 0);
-    window.add(&root);
-    window.show_all();
+    calendar_window.add(&root);
+    calendar_window.show_all();
 
-    let connected = calendar_url().is_some();
+    let connected = !load_calendar_feeds().is_empty();
     setup.set_visible(!connected);
-    connected_actions.set_visible(connected);
     events_box.set_visible(connected);
     refresh.set_sensitive(connected);
 
@@ -704,21 +819,34 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     let status_ref = calendar_status.clone();
     let events_ref = events_box.clone();
     let setup_ref = setup.clone();
-    let connected_ref = connected_actions.clone();
+    let feeds_ref = feeds_box.clone();
     let refresh_ref = refresh.clone();
+    let feed_sender = calendar_tx.clone();
     calendar_rx.attach(None, move |update| {
         match update {
-            CalendarUpdate::Loading => status_ref.set_label("Syncing Google Calendar…"),
-            CalendarUpdate::Events(events) => {
-                status_ref.set_label(&format!(
-                    "Google Calendar · {} · {} events",
-                    Local::now().format("%H:%M"),
-                    events.len()
-                ));
-                setup_ref.hide();
-                connected_ref.show();
+            CalendarUpdate::Loading => status_ref.set_label("Syncing calendars…"),
+            CalendarUpdate::Events {
+                events,
+                feeds,
+                failed,
+            } => {
+                if failed.is_empty() {
+                    status_ref.set_label(&format!(
+                        "{} calendars · {} · {} events",
+                        feeds.len(),
+                        Local::now().format("%H:%M"),
+                        events.len()
+                    ));
+                } else {
+                    status_ref.set_label(&format!(
+                        "{} events · unavailable: {}",
+                        events.len(),
+                        failed.join(", ")
+                    ));
+                }
                 events_ref.show();
                 refresh_ref.set_sensitive(true);
+                render_feeds(&feeds_ref, &feed_sender);
                 render_events(&events_ref, &events);
             }
             CalendarUpdate::Error(error) => {
@@ -727,7 +855,7 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
             CalendarUpdate::Disconnected => {
                 status_ref.set_label("Calendar not connected");
                 setup_ref.show();
-                connected_ref.hide();
+                render_feeds(&feeds_ref, &feed_sender);
                 events_ref.hide();
                 refresh_ref.set_sensitive(false);
             }
@@ -737,18 +865,46 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
 
     open_settings
         .connect_clicked(|_| crate::telemetry::spawn("xdg-open", &[GOOGLE_CALENDAR_SETTINGS]));
+    let add_setup = setup.clone();
+    let add_name = name_entry.clone();
+    add_calendar.connect_clicked(move |_| {
+        add_setup.show();
+        add_name.grab_focus();
+    });
     let connect_tx = calendar_tx.clone();
     let connect_status = calendar_status.clone();
+    let connect_name = name_entry.clone();
     let connect_entry = secret_entry.clone();
+    let connect_setup = setup.clone();
+    let connect_feeds = feeds_box.clone();
     connect.connect_clicked(move |_| {
         let value = connect_entry.text().trim().to_string();
         if !valid_calendar_url(&value) {
-            connect_status.set_label("Use Google’s HTTPS Secret address ending in .ics");
+            connect_status.set_label("Use a safe HTTPS iCal address");
             return;
         }
-        match atomic_private_write(&calendar_secret_path(), value.as_bytes()) {
+        let mut feeds = load_calendar_feeds();
+        if feeds.iter().any(|feed| feed.url == value) {
+            connect_status.set_label("That iCal feed is already connected");
+            return;
+        }
+        let entered_name = connect_name.text().trim().to_string();
+        let name = if entered_name.is_empty() {
+            format!("Calendar {}", feeds.len() + 1)
+        } else {
+            entered_name
+        };
+        feeds.push(CalendarFeed {
+            id: next_todo_id(),
+            name,
+            url: value,
+        });
+        match save_calendar_feeds(&feeds) {
             Ok(()) => {
+                connect_name.set_text("");
                 connect_entry.set_text("");
+                connect_setup.hide();
+                render_feeds(&connect_feeds, &connect_tx);
                 fetch_calendar(connect_tx.clone());
             }
             Err(error) => {
@@ -758,18 +914,7 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     });
     let refresh_tx = calendar_tx.clone();
     refresh.connect_clicked(move |_| fetch_calendar(refresh_tx.clone()));
-    let disconnect_tx = calendar_tx.clone();
-    disconnect.connect_clicked(move |_| {
-        match fs::remove_file(calendar_secret_path()) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                let _ = disconnect_tx.send(CalendarUpdate::Error(error.to_string()));
-                return;
-            }
-        }
-        let _ = disconnect_tx.send(CalendarUpdate::Disconnected);
-    });
+    render_feeds(&feeds_box, &calendar_tx);
 
     fetch_calendar(calendar_tx.clone());
     thread::spawn(move || loop {
@@ -777,7 +922,10 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
         fetch_calendar(calendar_tx.clone());
     });
 
-    Some(DesktopManager { _window: window })
+    Some(DesktopManager {
+        _todo_window: todo_window,
+        _calendar_window: calendar_window,
+    })
 }
 
 #[cfg(test)]
@@ -788,12 +936,15 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     #[test]
-    fn accepts_only_google_https_ical_secrets() {
+    fn accepts_safe_https_ical_feeds() {
         assert!(valid_calendar_url(
             "https://calendar.google.com/calendar/ical/user/private-token/basic.ics"
         ));
         assert!(!valid_calendar_url("http://calendar.google.com/basic.ics"));
-        assert!(!valid_calendar_url("https://example.com/basic.ics"));
+        assert!(valid_calendar_url("https://example.com/basic.ics"));
+        assert!(valid_calendar_url(
+            "https://example.com/calendar?format=ical&token=secret"
+        ));
         assert!(!valid_calendar_url(
             "https://calendar.google.com/calendar/ical/\"bad/basic.ics"
         ));

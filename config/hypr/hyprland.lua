@@ -184,7 +184,7 @@ hl.layer_rule({
 })
 hl.layer_rule({
     name = "blur-nixie-desktop",
-    match = { namespace = "^nixie-desktop$" },
+    match = { namespace = "^nixie-desktop-(todo|calendar)$" },
     blur = true,
     ignore_alpha = 0.12,
     no_anim = true,

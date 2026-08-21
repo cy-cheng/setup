@@ -18,6 +18,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const GOOGLE_CALENDAR_SETTINGS: &str = "https://calendar.google.com/calendar/u/0/r/settings";
 const CALENDAR_COLOR_COUNT: u8 = 6;
+const CALENDAR_WEEKS: i64 = 4;
+const VISIBLE_EVENTS_PER_DAY: usize = 2;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct TodoItem {
@@ -63,7 +65,7 @@ struct EventSeed {
 enum CalendarUpdate {
     Loading(NaiveDate),
     Events {
-        month: NaiveDate,
+        period_start: NaiveDate,
         events: Vec<CalendarEvent>,
         feeds: Vec<CalendarFeed>,
         failed: Vec<String>,
@@ -487,31 +489,23 @@ fn parse_calendar(input: &str, now: DateTime<Local>) -> Vec<CalendarEvent> {
     )
 }
 
-fn month_start(date: NaiveDate) -> NaiveDate {
-    date.with_day(1).unwrap_or(date)
+fn week_start(date: NaiveDate) -> NaiveDate {
+    date - ChronoDuration::days(date.weekday().num_days_from_monday() as i64)
 }
 
-fn shift_month(month: NaiveDate, delta: i32) -> NaiveDate {
-    let month = month_start(month);
-    if delta < 0 {
-        month
-            .checked_sub_months(Months::new(delta.unsigned_abs()))
-            .unwrap_or(month)
-    } else {
-        month
-            .checked_add_months(Months::new(delta as u32))
-            .unwrap_or(month)
-    }
+fn shift_period(start: NaiveDate, direction: i64) -> NaiveDate {
+    week_start(start)
+        .checked_add_signed(ChronoDuration::weeks(direction * CALENDAR_WEEKS))
+        .unwrap_or(start)
 }
 
-fn month_grid_bounds(month: NaiveDate) -> (NaiveDate, NaiveDate) {
-    let month = month_start(month);
-    let first = month - ChronoDuration::days(month.weekday().num_days_from_monday() as i64);
-    (first, first + ChronoDuration::days(41))
+fn period_bounds(start: NaiveDate) -> (NaiveDate, NaiveDate) {
+    let first = week_start(start);
+    (first, first + ChronoDuration::days(CALENDAR_WEEKS * 7 - 1))
 }
 
-fn month_datetime_bounds(month: NaiveDate) -> Option<(DateTime<Local>, DateTime<Local>)> {
-    let (first, last) = month_grid_bounds(month);
+fn period_datetime_bounds(start: NaiveDate) -> Option<(DateTime<Local>, DateTime<Local>)> {
+    let (first, last) = period_bounds(start);
     Some((
         local_datetime(first, chrono::NaiveTime::MIN)?,
         local_datetime(
@@ -519,6 +513,19 @@ fn month_datetime_bounds(month: NaiveDate) -> Option<(DateTime<Local>, DateTime<
             chrono::NaiveTime::MIN,
         )?,
     ))
+}
+
+fn period_heading(start: NaiveDate) -> String {
+    let (first, last) = period_bounds(start);
+    if first.year() == last.year() {
+        format!("{} – {}", first.format("%b %-d"), last.format("%b %-d, %Y"))
+    } else {
+        format!(
+            "{} – {}",
+            first.format("%b %-d, %Y"),
+            last.format("%b %-d, %Y")
+        )
+    }
 }
 
 fn event_occurs_on(event: &CalendarEvent, date: NaiveDate) -> bool {
@@ -627,17 +634,17 @@ fn fetch_ical(url: &str) -> std::io::Result<std::process::Output> {
         })
 }
 
-fn fetch_calendar(sender: glib::Sender<CalendarUpdate>, month: NaiveDate) {
-    let month = month_start(month);
-    let _ = sender.send(CalendarUpdate::Loading(month));
+fn fetch_calendar(sender: glib::Sender<CalendarUpdate>, period_start: NaiveDate) {
+    let period_start = week_start(period_start);
+    let _ = sender.send(CalendarUpdate::Loading(period_start));
     thread::spawn(move || {
         let feeds = load_calendar_feeds();
         if feeds.is_empty() {
-            let _ = sender.send(CalendarUpdate::Disconnected(month));
+            let _ = sender.send(CalendarUpdate::Disconnected(period_start));
             return;
         }
-        let Some((from, until)) = month_datetime_bounds(month) else {
-            let _ = sender.send(CalendarUpdate::Error("Invalid calendar month".into()));
+        let Some((from, until)) = period_datetime_bounds(period_start) else {
+            let _ = sender.send(CalendarUpdate::Error("Invalid calendar period".into()));
             return;
         };
         let mut events = Vec::new();
@@ -666,7 +673,7 @@ fn fetch_calendar(sender: glib::Sender<CalendarUpdate>, month: NaiveDate) {
         }
         events.sort_by_key(|event| event.start);
         let _ = sender.send(CalendarUpdate::Events {
-            month,
+            period_start,
             events,
             feeds,
             failed,
@@ -703,7 +710,7 @@ fn calendar_event_button(event: &CalendarEvent, date: NaiveDate) -> gtk::Button 
     let label = gtk::Label::new(Some(&text));
     label.set_xalign(0.0);
     label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    label.set_max_width_chars(15);
+    label.set_max_width_chars(32);
     button.add(&label);
 
     let popover = gtk::Popover::new(Some(&button));
@@ -747,8 +754,13 @@ fn calendar_event_button(event: &CalendarEvent, date: NaiveDate) -> gtk::Button 
     button
 }
 
-fn calendar_more_button(date: NaiveDate, events: &[&CalendarEvent]) -> gtk::Button {
-    let button = gtk::Button::with_label(&format!("+{}", events.len().saturating_sub(1)));
+fn calendar_more_button(
+    date: NaiveDate,
+    events: &[&CalendarEvent],
+    visible_events: usize,
+) -> gtk::Button {
+    let button =
+        gtk::Button::with_label(&format!("+{}", events.len().saturating_sub(visible_events)));
     button.style_context().add_class("calendar-more");
     button.set_tooltip_text(Some("Show every event on this day"));
 
@@ -805,7 +817,7 @@ fn calendar_more_button(date: NaiveDate, events: &[&CalendarEvent]) -> gtk::Butt
     button
 }
 
-fn render_month(grid: &gtk::Grid, month: NaiveDate, events: &[CalendarEvent]) {
+fn render_period(grid: &gtk::Grid, period_start: NaiveDate, events: &[CalendarEvent]) {
     clear_container(grid.upcast_ref());
     for (column, name) in ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
         .iter()
@@ -817,18 +829,15 @@ fn render_month(grid: &gtk::Grid, month: NaiveDate, events: &[CalendarEvent]) {
     }
 
     let today = Local::now().date_naive();
-    let (first, _) = month_grid_bounds(month);
-    for offset in 0..42i64 {
+    let (first, _) = period_bounds(period_start);
+    for offset in 0..(CALENDAR_WEEKS * 7) {
         let date = first + ChronoDuration::days(offset);
         let cell = gtk::Box::new(gtk::Orientation::Vertical, 2);
         cell.style_context().add_class("calendar-day");
-        if date.month() != month.month() {
-            cell.style_context().add_class("outside-month");
-        }
         if date == today {
             cell.style_context().add_class("today");
         }
-        cell.set_size_request(116, 38);
+        cell.set_size_request(116, 56);
         let day_events: Vec<_> = events
             .iter()
             .filter(|event| event_occurs_on(event, date))
@@ -838,12 +847,12 @@ fn render_month(grid: &gtk::Grid, month: NaiveDate, events: &[CalendarEvent]) {
         day.set_xalign(0.0);
         day.style_context().add_class("calendar-day-number");
         day_header.pack_start(&day, true, true, 0);
-        if day_events.len() > 1 {
-            let more = calendar_more_button(date, &day_events);
+        if day_events.len() > VISIBLE_EVENTS_PER_DAY {
+            let more = calendar_more_button(date, &day_events, VISIBLE_EVENTS_PER_DAY);
             day_header.pack_end(&more, false, false, 0);
         }
         cell.pack_start(&day_header, false, false, 0);
-        for event in day_events.iter().take(1) {
+        for event in day_events.iter().take(VISIBLE_EVENTS_PER_DAY) {
             cell.pack_start(&calendar_event_button(event, date), false, false, 0);
         }
         grid.attach(&cell, (offset % 7) as i32, (offset / 7 + 1) as i32, 1, 1);
@@ -854,7 +863,7 @@ fn render_month(grid: &gtk::Grid, month: NaiveDate, events: &[CalendarEvent]) {
 fn render_feeds(
     container: &gtk::Box,
     sender: &glib::Sender<CalendarUpdate>,
-    viewed_month: &Rc<RefCell<NaiveDate>>,
+    viewed_period: &Rc<RefCell<NaiveDate>>,
 ) {
     clear_container(container.upcast_ref());
     for feed in load_calendar_feeds() {
@@ -879,7 +888,7 @@ fn render_feeds(
         let id = feed.id;
         let color_box = container.clone();
         let color_sender = sender.clone();
-        let color_month = viewed_month.clone();
+        let color_period = viewed_period.clone();
         swatch.connect_clicked(move |_| {
             let mut feeds = load_calendar_feeds();
             if let Some(feed) = feeds.iter_mut().find(|feed| feed.id == id) {
@@ -889,13 +898,13 @@ fn render_feeds(
                 let _ = color_sender.send(CalendarUpdate::Error(error.to_string()));
                 return;
             }
-            render_feeds(&color_box, &color_sender, &color_month);
-            fetch_calendar(color_sender.clone(), *color_month.borrow());
+            render_feeds(&color_box, &color_sender, &color_period);
+            fetch_calendar(color_sender.clone(), *color_period.borrow());
         });
 
         let remove_box = container.clone();
         let remove_sender = sender.clone();
-        let remove_month = viewed_month.clone();
+        let remove_period = viewed_period.clone();
         remove.connect_clicked(move |_| {
             let mut feeds = load_calendar_feeds();
             feeds.retain(|feed| feed.id != id);
@@ -903,14 +912,20 @@ fn render_feeds(
                 let _ = remove_sender.send(CalendarUpdate::Error(error.to_string()));
                 return;
             }
-            render_feeds(&remove_box, &remove_sender, &remove_month);
-            fetch_calendar(remove_sender.clone(), *remove_month.borrow());
+            render_feeds(&remove_box, &remove_sender, &remove_period);
+            fetch_calendar(remove_sender.clone(), *remove_period.borrow());
         });
     }
     container.show_all();
 }
 
-fn desktop_window(name: &str, monitor_index: i32, side: Edge, width: i32) -> gtk::Window {
+fn desktop_window(
+    name: &str,
+    monitor_index: i32,
+    side: Option<Edge>,
+    vertical: Edge,
+    width: i32,
+) -> gtk::Window {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_widget_name(name);
     window.style_context().add_class("nixie-desktop");
@@ -926,10 +941,21 @@ fn desktop_window(name: &str, monitor_index: i32, side: Edge, width: i32) -> gtk
     layer_shell::init_for_window(&window);
     layer_shell::set_namespace(&window, name);
     layer_shell::set_layer(&window, Layer::Bottom);
-    layer_shell::set_anchor(&window, Edge::Bottom, true);
-    layer_shell::set_anchor(&window, side, true);
-    layer_shell::set_margin(&window, Edge::Bottom, 28);
-    layer_shell::set_margin(&window, side, 24);
+    layer_shell::set_anchor(&window, vertical, true);
+    layer_shell::set_margin(
+        &window,
+        vertical,
+        if vertical == Edge::Top { 66 } else { 28 },
+    );
+    if let Some(side) = side {
+        layer_shell::set_anchor(&window, side, true);
+        layer_shell::set_margin(&window, side, 24);
+    } else {
+        layer_shell::set_anchor(&window, Edge::Left, true);
+        layer_shell::set_anchor(&window, Edge::Right, true);
+        layer_shell::set_margin(&window, Edge::Left, 24);
+        layer_shell::set_margin(&window, Edge::Right, 24);
+    }
     layer_shell::set_exclusive_zone(&window, -1);
     layer_shell::set_keyboard_mode(&window, KeyboardMode::OnDemand);
     if let Some(display) = gdk::Display::default() {
@@ -944,7 +970,13 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     if !enabled {
         return None;
     }
-    let todo_window = desktop_window("nixie-desktop-todo", monitor_index, Edge::Left, 350);
+    let todo_window = desktop_window(
+        "nixie-desktop-todo",
+        monitor_index,
+        Some(Edge::Left),
+        Edge::Top,
+        350,
+    );
 
     let root = gtk::Box::new(gtk::Orientation::Vertical, 12);
     root.style_context().add_class("desktop-card");
@@ -997,16 +1029,22 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     todo_window.add(&root);
     todo_window.show_all();
 
-    let calendar_window = desktop_window("nixie-desktop-calendar", monitor_index, Edge::Right, 900);
+    let calendar_window = desktop_window(
+        "nixie-desktop-calendar",
+        monitor_index,
+        None,
+        Edge::Bottom,
+        900,
+    );
     let root = gtk::Box::new(gtk::Orientation::Vertical, 8);
     root.style_context().add_class("desktop-card");
     root.style_context().add_class("calendar-card");
 
-    let viewed_month = Rc::new(RefCell::new(month_start(Local::now().date_naive())));
+    let viewed_period = Rc::new(RefCell::new(week_start(Local::now().date_naive())));
     let calendar_header = gtk::Box::new(gtk::Orientation::Horizontal, 7);
     let calendar_title = gtk::Label::new(Some(&format!(
         "󰃭  {}",
-        viewed_month.borrow().format("%B %Y")
+        period_heading(*viewed_period.borrow())
     )));
     calendar_title.style_context().add_class("desktop-title");
     calendar_title
@@ -1014,15 +1052,15 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
         .add_class("calendar-month-title");
     calendar_title.set_xalign(0.0);
     let previous = gtk::Button::with_label("󰁍");
-    previous.set_tooltip_text(Some("Previous month"));
+    previous.set_tooltip_text(Some("Previous four weeks"));
     let today = gtk::Button::with_label("Today");
-    today.set_tooltip_text(Some("Return to this month"));
+    today.set_tooltip_text(Some("Put the current week first"));
     let next = gtk::Button::with_label("󰁔");
-    next.set_tooltip_text(Some("Next month"));
+    next.set_tooltip_text(Some("Next four weeks"));
     let manage = gtk::Button::with_label("󰒓");
     manage.set_tooltip_text(Some("Calendars and colors"));
     let refresh = gtk::Button::with_label("󰑐");
-    refresh.set_tooltip_text(Some("Refresh this month"));
+    refresh.set_tooltip_text(Some("Refresh these four weeks"));
     for button in [&previous, &today, &next, &manage, &refresh] {
         button.style_context().add_class("calendar-nav");
     }
@@ -1090,7 +1128,7 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     calendar_grid.set_column_spacing(3);
     calendar_grid.set_row_spacing(3);
     root.pack_start(&calendar_grid, false, false, 0);
-    render_month(&calendar_grid, *viewed_month.borrow(), &[]);
+    render_period(&calendar_grid, *viewed_period.borrow(), &[]);
 
     calendar_window.add(&root);
     calendar_window.show_all();
@@ -1107,19 +1145,19 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     let feeds_ref = feeds_box.clone();
     let refresh_ref = refresh.clone();
     let feed_sender = calendar_tx.clone();
-    let receiver_month = viewed_month.clone();
+    let receiver_period = viewed_period.clone();
     calendar_rx.attach(None, move |update| {
         match update {
-            CalendarUpdate::Loading(month) if month == *receiver_month.borrow() => {
+            CalendarUpdate::Loading(period_start) if period_start == *receiver_period.borrow() => {
                 status_ref.set_label("Syncing calendars…")
             }
             CalendarUpdate::Loading(_) => {}
             CalendarUpdate::Events {
-                month,
+                period_start,
                 events,
                 feeds,
                 failed,
-            } if month == *receiver_month.borrow() => {
+            } if period_start == *receiver_period.borrow() => {
                 if failed.is_empty() {
                     status_ref.set_label(&format!(
                         "{} calendars · synced {} · {} events",
@@ -1135,19 +1173,21 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
                     ));
                 }
                 refresh_ref.set_sensitive(true);
-                render_feeds(&feeds_ref, &feed_sender, &receiver_month);
-                render_month(&grid_ref, month, &events);
+                render_feeds(&feeds_ref, &feed_sender, &receiver_period);
+                render_period(&grid_ref, period_start, &events);
             }
             CalendarUpdate::Events { .. } => {}
             CalendarUpdate::Error(error) => {
                 status_ref.set_label(&format!("Calendar error · {error}"));
             }
-            CalendarUpdate::Disconnected(month) if month == *receiver_month.borrow() => {
+            CalendarUpdate::Disconnected(period_start)
+                if period_start == *receiver_period.borrow() =>
+            {
                 status_ref.set_label("Calendar not connected");
                 setup_ref.show();
                 manager_ref.set_reveal_child(true);
-                render_feeds(&feeds_ref, &feed_sender, &receiver_month);
-                render_month(&grid_ref, month, &[]);
+                render_feeds(&feeds_ref, &feed_sender, &receiver_period);
+                render_period(&grid_ref, period_start, &[]);
                 refresh_ref.set_sensitive(false);
             }
             CalendarUpdate::Disconnected(_) => {}
@@ -1169,37 +1209,37 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
         .connect_clicked(|_| crate::telemetry::spawn("xdg-open", &[GOOGLE_CALENDAR_SETTINGS]));
 
     let previous_tx = calendar_tx.clone();
-    let previous_month = viewed_month.clone();
+    let previous_period = viewed_period.clone();
     let previous_title = calendar_title.clone();
     let previous_grid = calendar_grid.clone();
     previous.connect_clicked(move |_| {
-        let month = shift_month(*previous_month.borrow(), -1);
-        *previous_month.borrow_mut() = month;
-        previous_title.set_label(&format!("󰃭  {}", month.format("%B %Y")));
-        render_month(&previous_grid, month, &[]);
-        fetch_calendar(previous_tx.clone(), month);
+        let period_start = shift_period(*previous_period.borrow(), -1);
+        *previous_period.borrow_mut() = period_start;
+        previous_title.set_label(&format!("󰃭  {}", period_heading(period_start)));
+        render_period(&previous_grid, period_start, &[]);
+        fetch_calendar(previous_tx.clone(), period_start);
     });
     let next_tx = calendar_tx.clone();
-    let next_month = viewed_month.clone();
+    let next_period = viewed_period.clone();
     let next_title = calendar_title.clone();
     let next_grid = calendar_grid.clone();
     next.connect_clicked(move |_| {
-        let month = shift_month(*next_month.borrow(), 1);
-        *next_month.borrow_mut() = month;
-        next_title.set_label(&format!("󰃭  {}", month.format("%B %Y")));
-        render_month(&next_grid, month, &[]);
-        fetch_calendar(next_tx.clone(), month);
+        let period_start = shift_period(*next_period.borrow(), 1);
+        *next_period.borrow_mut() = period_start;
+        next_title.set_label(&format!("󰃭  {}", period_heading(period_start)));
+        render_period(&next_grid, period_start, &[]);
+        fetch_calendar(next_tx.clone(), period_start);
     });
     let today_tx = calendar_tx.clone();
-    let today_month = viewed_month.clone();
+    let today_period = viewed_period.clone();
     let today_title = calendar_title.clone();
     let today_grid = calendar_grid.clone();
     today.connect_clicked(move |_| {
-        let month = month_start(Local::now().date_naive());
-        *today_month.borrow_mut() = month;
-        today_title.set_label(&format!("󰃭  {}", month.format("%B %Y")));
-        render_month(&today_grid, month, &[]);
-        fetch_calendar(today_tx.clone(), month);
+        let period_start = week_start(Local::now().date_naive());
+        *today_period.borrow_mut() = period_start;
+        today_title.set_label(&format!("󰃭  {}", period_heading(period_start)));
+        render_period(&today_grid, period_start, &[]);
+        fetch_calendar(today_tx.clone(), period_start);
     });
 
     let connect_tx = calendar_tx.clone();
@@ -1208,7 +1248,7 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     let connect_entry = secret_entry.clone();
     let connect_setup = setup.clone();
     let connect_feeds = feeds_box.clone();
-    let connect_month = viewed_month.clone();
+    let connect_period = viewed_period.clone();
     connect.connect_clicked(move |_| {
         let value = connect_entry.text().trim().to_string();
         if !valid_calendar_url(&value) {
@@ -1238,8 +1278,8 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
                 connect_name.set_text("");
                 connect_entry.set_text("");
                 connect_setup.hide();
-                render_feeds(&connect_feeds, &connect_tx, &connect_month);
-                fetch_calendar(connect_tx.clone(), *connect_month.borrow());
+                render_feeds(&connect_feeds, &connect_tx, &connect_period);
+                fetch_calendar(connect_tx.clone(), *connect_period.borrow());
             }
             Err(error) => {
                 connect_status.set_label(&format!("Cannot save calendar secret · {error}"))
@@ -1247,19 +1287,19 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
         }
     });
     let refresh_tx = calendar_tx.clone();
-    let refresh_month = viewed_month.clone();
-    refresh.connect_clicked(move |_| fetch_calendar(refresh_tx.clone(), *refresh_month.borrow()));
-    render_feeds(&feeds_box, &calendar_tx, &viewed_month);
+    let refresh_period = viewed_period.clone();
+    refresh.connect_clicked(move |_| fetch_calendar(refresh_tx.clone(), *refresh_period.borrow()));
+    render_feeds(&feeds_box, &calendar_tx, &viewed_period);
 
-    fetch_calendar(calendar_tx.clone(), *viewed_month.borrow());
+    fetch_calendar(calendar_tx.clone(), *viewed_period.borrow());
     let timer_tx = calendar_tx.clone();
-    let timer_month = viewed_month.clone();
+    let timer_period = viewed_period.clone();
     let refresh_seconds = refresh_minutes
         .max(1)
         .saturating_mul(60)
         .min(u32::MAX as u64) as u32;
     glib::timeout_add_seconds_local(refresh_seconds, move || {
-        fetch_calendar(timer_tx.clone(), *timer_month.borrow());
+        fetch_calendar(timer_tx.clone(), *timer_period.borrow());
         glib::Continue(true)
     });
 
@@ -1272,8 +1312,8 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_private_write, month_grid_bounds, normalize_feed_colors, parse_calendar,
-        shift_month, valid_calendar_url, CalendarFeed,
+        atomic_private_write, normalize_feed_colors, parse_calendar, period_bounds, shift_period,
+        valid_calendar_url, week_start, CalendarFeed,
     };
     use chrono::{Datelike, Local, NaiveDate, TimeZone};
     use std::fs;
@@ -1305,18 +1345,19 @@ mod tests {
     }
 
     #[test]
-    fn month_grid_is_six_monday_first_weeks() {
-        let month = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
-        let (first, last) = month_grid_bounds(month);
-        assert_eq!(first, NaiveDate::from_ymd_opt(2026, 7, 27).unwrap());
-        assert_eq!(last, NaiveDate::from_ymd_opt(2026, 9, 6).unwrap());
+    fn period_is_four_weeks_starting_on_monday() {
+        let today = NaiveDate::from_ymd_opt(2026, 8, 22).unwrap();
+        let start = week_start(today);
+        let (first, last) = period_bounds(start);
+        assert_eq!(first, NaiveDate::from_ymd_opt(2026, 8, 17).unwrap());
+        assert_eq!(last, NaiveDate::from_ymd_opt(2026, 9, 13).unwrap());
         assert_eq!(
-            shift_month(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), -1),
-            NaiveDate::from_ymd_opt(2025, 12, 1).unwrap()
+            shift_period(start, -1),
+            NaiveDate::from_ymd_opt(2026, 7, 20).unwrap()
         );
         assert_eq!(
-            shift_month(NaiveDate::from_ymd_opt(2026, 12, 1).unwrap(), 1),
-            NaiveDate::from_ymd_opt(2027, 1, 1).unwrap()
+            shift_period(start, 1),
+            NaiveDate::from_ymd_opt(2026, 9, 14).unwrap()
         );
     }
 

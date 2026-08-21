@@ -15,7 +15,7 @@
 }
 
 window.nixie-bar {
-  background: alpha(@bg, 0.96);
+  background: @bg;
   color: @text;
 }
 
@@ -181,17 +181,12 @@ window.nixie-desktop list { background: transparent; border: none; }
 }
 .calendar-day {
   min-width: 116px;
-  min-height: 38px;
+  min-height: 56px;
   padding: 4px 5px;
   border: 1px solid alpha(@border, 0.72);
   border-radius: 6px;
   background: alpha(@bg, 0.68);
   color: @text;
-}
-.calendar-day.outside-month {
-  border-color: alpha(@border, 0.38);
-  background: alpha(@bg, 0.38);
-  color: alpha(@muted, 0.66);
 }
 .calendar-day.today {
   border-color: @amber_dim;

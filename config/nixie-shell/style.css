@@ -88,7 +88,7 @@ window.nixie-desktop list { background: transparent; border: none; }
   background: alpha(@raised, 0.88);
 }
 .calendar-card { padding: 12px 14px; }
-.calendar-month-title { font-size: 18px; }
+.calendar-month-title { font-size: 22px; }
 .calendar-nav {
   min-width: 30px;
   min-height: 30px;
@@ -176,12 +176,12 @@ window.nixie-desktop list { background: transparent; border: none; }
 .calendar-weekday {
   padding: 2px 0;
   color: @muted;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 }
 .calendar-day {
   min-width: 116px;
-  min-height: 56px;
+  min-height: 72px;
   padding: 4px 5px;
   border: 1px solid alpha(@border, 0.72);
   border-radius: 6px;
@@ -194,25 +194,25 @@ window.nixie-desktop list { background: transparent; border: none; }
 }
 .calendar-day-number {
   color: @muted;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
 }
 .calendar-day.today .calendar-day-number { color: @amber; }
 .calendar-chip {
-  min-height: 17px;
+  min-height: 24px;
   padding: 0 4px;
   border-width: 0 0 0 3px;
   border-style: solid;
   border-radius: 4px;
   box-shadow: none;
 }
-.calendar-chip label { font-size: 11px; }
+.calendar-chip label { font-size: 15px; }
 .calendar-more {
   padding: 0;
   border: none;
   background: transparent;
   color: @muted;
-  font-size: 10px;
+  font-size: 14px;
 }
 .calendar-more:hover, .calendar-more:focus, .calendar-more:active {
   background: alpha(@raised, 0.96);
@@ -361,10 +361,6 @@ window.nixie-popover {
   border: 1px solid @border;
   border-radius: 12px;
   color: @text;
-}
-window.nixie-popover.system-panel {
-  background: alpha(@surface, 0.82);
-  border-color: alpha(@amber_dim, 0.78);
 }
 .panel { padding: 16px; }
 .panel-title { color: @amber; font-size: 18px; font-weight: 700; }

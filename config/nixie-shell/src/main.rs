@@ -668,7 +668,6 @@ fn confirmed_action(
 
 fn create_system_panel(updates: glib::Sender<ModuleUpdate>) -> SystemPanelUi {
     let win = popup("nixie-system", 430, 600);
-    win.style_context().add_class("system-panel");
     let root = vbox(12);
     root.style_context().add_class("panel");
     root.pack_start(&label("System", "panel-title"), false, false, 0);

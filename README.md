@@ -9,9 +9,11 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 - A native, event-driven divergence-meter background on every monitor. It sleeps
   while showing `1.048596`, reveals the clock and rolls briefly at each minute,
   without Eww, Hyprpaper, or a polling script.
-- Separate bottom-layer desktop cards: persistent Todos at bottom-left and
-  upcoming calendars at bottom-right. Any number of read-only HTTPS iCal feeds
-  can be named and connected. Their private addresses are stored only in
+- Separate bottom-layer desktop cards: persistent Todos at bottom-left and a
+  fixed-height monthly calendar at bottom-right, clear of the Nixie clock.
+  Navigate months with the arrow buttons; events are color-coded by source and
+  reveal their calendar/details only when clicked. Any number of read-only HTTPS
+  iCal feeds can be named and connected. Their private addresses are stored only in
   `~/.config/nixie-shell/google-calendars.json` with mode `0600`; they are never
   part of this repository or exposed in `curl` process arguments.
 - Event-driven workspace, audio, power, battery, network, Bluetooth, and
@@ -54,6 +56,7 @@ and Hyprpaper are not part of the running setup.
 To connect Google Calendar, open an empty workspace and use the desktop card's
 **Open Google settings** button. Under the chosen calendar, open **Integrate
 calendar**, copy the **Secret address in iCal format**, give it a local display
-name, paste it into the masked field, and click **Add calendar**. Use `＋` to add
-more Google or other HTTPS iCal feeds. Feeds are read-only and refresh every 15
-minutes; the refresh button updates all of them immediately.
+name, paste it into the masked field, and click **Add calendar**. Open the source
+manager (`󰒓`) to add more feeds, remove one, or click its color dot to cycle its
+color. Feeds are read-only and refresh every 15 minutes; the refresh button
+updates the visible month immediately.

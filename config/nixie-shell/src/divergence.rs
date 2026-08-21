@@ -2,7 +2,7 @@ use chrono::{Local, Timelike};
 use gtk::cairo::{Context, Format, ImageSurface, Operator, Region};
 use gtk::gdk;
 use gtk::prelude::*;
-use gtk_layer_shell::{self as layer_shell, Edge, Layer};
+use gtk_layer_shell::{self as layer_shell, Edge, KeyboardMode, Layer};
 use std::cell::{Cell, RefCell};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -284,7 +284,7 @@ fn add_surface(
     layer_shell::set_layer(&window, Layer::Bottom);
     layer_shell::set_monitor(&window, monitor);
     layer_shell::set_exclusive_zone(&window, -1);
-    layer_shell::set_keyboard_interactivity(&window, false);
+    layer_shell::set_keyboard_mode(&window, KeyboardMode::None);
 
     let geometry = monitor.geometry();
     let max_by_width = geometry.width() as f64 * 0.90 / (8.0 * CELL_WIDTH_FACTOR);

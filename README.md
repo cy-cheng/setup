@@ -9,6 +9,10 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 - A native, event-driven divergence-meter background on every monitor. It sleeps
   while showing `1.048596`, reveals the clock and rolls briefly at each minute,
   without Eww, Hyprpaper, or a polling script.
+- A bottom-layer desktop Todo card with persistent local tasks and an optional
+  read-only Google Calendar feed. The private iCal address is stored only in
+  `~/.config/nixie-shell/google-calendar-url` with mode `0600`; it is never part
+  of this repository or exposed in the `curl` process arguments.
 - Event-driven workspace, audio, power, battery, network, Bluetooth, and
   notification updates; only hardware metrics and quota data use timers.
 - Network, Bluetooth, audio, battery/power-profile, idle inhibitor, workspace,
@@ -33,6 +37,7 @@ Hyprland 0.55+, Rust/Cargo, a C/C++ compiler, `pkgconf`, GTK3,
 `gtk-layer-shell`, libpulse, NetworkManager/libnm, WirePlumber (`wpctl`), Fcitx 5 core
 development headers, Cairo/Pango, Wayland client development headers, Dunst,
 Rofi 2, Blueberry, `powerprofilesctl`, and `jq`.
+The optional Google Calendar feed also uses `curl` for HTTPS retrieval.
 
 The divergence meter uses the locally installed `BO NX Medium` and
 `TT Chocolates Trl ExtraLight` fonts. They are not redistributed by this
@@ -44,3 +49,9 @@ Run `./install.sh`, then log out and back in. The installer copies only the
 tracked configuration, builds the optimized bar, and installs the two local
 Fcitx addons. Hyprland starts `~/.config/nixie-shell/start-ui.sh`; Waybar, Eww,
 and Hyprpaper are not part of the running setup.
+
+To connect Google Calendar, open an empty workspace and use the desktop card's
+**Open Google settings** button. Under the chosen calendar, open **Integrate
+calendar**, copy the **Secret address in iCal format**, paste it into the masked
+field, and click **Connect**. The feed is read-only and refreshes every 15
+minutes; the refresh button updates it immediately.

@@ -182,3 +182,10 @@ hl.layer_rule({
     blur_popups = true,
     no_anim = true,
 })
+hl.layer_rule({
+    name = "blur-nixie-desktop",
+    match = { namespace = "^nixie-desktop$" },
+    blur = true,
+    ignore_alpha = 0.12,
+    no_anim = true,
+})

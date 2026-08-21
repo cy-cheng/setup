@@ -1,3 +1,4 @@
+mod desktop;
 mod divergence;
 mod events;
 mod telemetry;
@@ -9,7 +10,7 @@ use events::ModuleUpdate;
 use futures::TryStreamExt;
 use gtk::gdk;
 use gtk::prelude::*;
-use gtk_layer_shell::{self as layer_shell, Edge, Layer};
+use gtk_layer_shell::{self as layer_shell, Edge, KeyboardMode, Layer};
 use serde::Deserialize;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -54,6 +55,24 @@ struct DivergenceConfig {
     roll_fps: u32,
 }
 
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+struct DesktopConfig {
+    enabled: bool,
+    monitor: i32,
+    calendar_refresh_minutes: u64,
+}
+
+impl Default for DesktopConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            monitor: 0,
+            calendar_refresh_minutes: 15,
+        }
+    }
+}
+
 impl Default for DivergenceConfig {
     fn default() -> Self {
         Self {
@@ -73,6 +92,8 @@ struct Config {
     refresh: RefreshConfig,
     #[serde(default)]
     divergence: DivergenceConfig,
+    #[serde(default)]
+    desktop: DesktopConfig,
 }
 
 #[derive(Clone)]
@@ -378,7 +399,7 @@ fn popup(name: &str, width: i32, height: i32) -> gtk::Window {
     layer_shell::set_anchor(&win, Edge::Left, true);
     layer_shell::set_margin(&win, Edge::Top, 4);
     layer_shell::set_margin(&win, Edge::Left, 8);
-    layer_shell::set_keyboard_interactivity(&win, false);
+    layer_shell::set_keyboard_mode(&win, KeyboardMode::None);
     win.connect_delete_event(|w, _| {
         w.hide();
         gtk::Inhibit(true)
@@ -428,7 +449,7 @@ fn create_candidate_window() -> (gtk::Window, gtk::Box) {
     layer_shell::set_layer(&win, Layer::Overlay);
     layer_shell::set_anchor(&win, Edge::Top, true);
     layer_shell::set_anchor(&win, Edge::Left, true);
-    layer_shell::set_keyboard_interactivity(&win, false);
+    layer_shell::set_keyboard_mode(&win, KeyboardMode::None);
     let root = vbox(6);
     root.style_context().add_class("candidate-root");
     win.add(&root);
@@ -1060,7 +1081,7 @@ fn build_bar(
     layer_shell::set_anchor(&win, Edge::Right, true);
     layer_shell::auto_exclusive_zone_enable(&win);
     win.set_default_size(1, config.height);
-    layer_shell::set_keyboard_interactivity(&win, false);
+    layer_shell::set_keyboard_mode(&win, KeyboardMode::None);
     if let Some(display) = gdk::Display::default() {
         if let Some(monitor) = display.monitor(config.monitor) {
             layer_shell::set_monitor(&win, &monitor);
@@ -1641,6 +1662,11 @@ fn main() -> Result<()> {
         config.divergence.enabled,
         &config.divergence.monitors,
         config.divergence.roll_fps,
+    );
+    let _desktop = desktop::start(
+        config.desktop.enabled,
+        config.desktop.monitor,
+        config.desktop.calendar_refresh_minutes,
     );
     let (candidate_win, candidate_root) = create_candidate_window();
     let meta_ref = metadata.clone();

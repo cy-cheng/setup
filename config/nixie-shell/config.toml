@@ -6,6 +6,11 @@ enabled = true
 monitors = "all"
 roll_fps = 20
 
+[desktop]
+enabled = true
+monitor = 0
+calendar_refresh_minutes = 15
+
 [commands]
 network = "/home/brine/.config/nixie-shell/bin/open-network-menu"
 network_advanced = "nm-connection-editor"

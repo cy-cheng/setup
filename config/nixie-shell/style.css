@@ -23,6 +23,90 @@ window.nixie-divergence {
   background: transparent;
 }
 
+window.nixie-desktop {
+  background: alpha(@surface, 0.62);
+  border: 1px solid alpha(@amber_dim, 0.72);
+  border-radius: 13px;
+  color: @text;
+}
+.desktop-card { padding: 15px; }
+.desktop-title { color: @amber; font-size: 17px; font-weight: 700; }
+.desktop-summary, .calendar-status, .calendar-event-time, .desktop-empty {
+  color: @muted;
+  font-size: 13px;
+}
+.todo-entry {
+  min-height: 34px;
+  padding: 2px 9px;
+  border: 1px solid alpha(@border, 0.82);
+  border-radius: 8px;
+  background: alpha(@bg, 0.62);
+  color: @text;
+}
+.todo-entry:focus { border-color: @amber_dim; }
+.todo-add, .todo-remove, .calendar-refresh {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid alpha(@border, 0.72);
+  border-radius: 8px;
+  background: alpha(@raised, 0.72);
+  color: @amber;
+}
+.todo-add:hover, .todo-remove:hover, .calendar-refresh:hover {
+  border-color: @amber_dim;
+  background: alpha(@amber, 0.13);
+}
+.todo-row { padding: 5px 3px; }
+window.nixie-desktop scrolledwindow,
+window.nixie-desktop scrolledwindow viewport,
+window.nixie-desktop list { background: transparent; border: none; }
+.todo-row checkbutton { color: @text; }
+.todo-row checkbutton.done { color: @muted; }
+.todo-row checkbutton check {
+  min-width: 17px;
+  min-height: 17px;
+  margin-right: 7px;
+  border: 1px solid @amber_dim;
+  border-radius: 5px;
+  background: alpha(@bg, 0.56);
+}
+.todo-row checkbutton check:checked { background: @amber; color: @bg; }
+.todo-remove { color: @muted; border-color: transparent; background: transparent; }
+.todo-remove:hover { color: @critical; border-color: alpha(@critical, 0.48); }
+.desktop-separator { margin: 3px 0; background: alpha(@border, 0.62); }
+.calendar-event {
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: alpha(@raised, 0.48);
+  color: @text;
+}
+.calendar-event:hover { border-color: alpha(@amber_dim, 0.65); background: alpha(@amber, 0.11); }
+.calendar-setup {
+  padding: 9px;
+  border-radius: 8px;
+  background: alpha(@raised, 0.52);
+  color: @muted;
+}
+.calendar-setup label, .calendar-setup entry, .calendar-setup button,
+.calendar-disconnect { font-size: 13px; }
+.calendar-setup entry {
+  min-height: 30px;
+  border: 1px solid alpha(@border, 0.78);
+  border-radius: 7px;
+  background: alpha(@bg, 0.64);
+  color: @text;
+}
+.calendar-setup button, .calendar-disconnect {
+  min-height: 30px;
+  border-radius: 7px;
+  background: alpha(@raised, 0.68);
+  color: @text;
+}
+.calendar-setup button:hover { color: @amber; background: alpha(@amber, 0.12); }
+.calendar-disconnect { color: @muted; }
+
 .bar-root { padding: 0 10px; }
 .bar-left, .bar-right { min-height: 42px; }
 

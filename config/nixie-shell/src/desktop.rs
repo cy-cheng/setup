@@ -515,19 +515,6 @@ fn period_datetime_bounds(start: NaiveDate) -> Option<(DateTime<Local>, DateTime
     ))
 }
 
-fn period_heading(start: NaiveDate) -> String {
-    let (first, last) = period_bounds(start);
-    if first.year() == last.year() {
-        format!("{} – {}", first.format("%b %-d"), last.format("%b %-d, %Y"))
-    } else {
-        format!(
-            "{} – {}",
-            first.format("%b %-d, %Y"),
-            last.format("%b %-d, %Y")
-        )
-    }
-}
-
 fn event_occurs_on(event: &CalendarEvent, date: NaiveDate) -> bool {
     let Some(start) = local_datetime(date, chrono::NaiveTime::MIN) else {
         return false;
@@ -1042,15 +1029,9 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
 
     let viewed_period = Rc::new(RefCell::new(week_start(Local::now().date_naive())));
     let calendar_header = gtk::Box::new(gtk::Orientation::Horizontal, 7);
-    let calendar_title = gtk::Label::new(Some(&format!(
-        "󰃭  {}",
-        period_heading(*viewed_period.borrow())
-    )));
-    calendar_title.style_context().add_class("desktop-title");
-    calendar_title
-        .style_context()
-        .add_class("calendar-month-title");
-    calendar_title.set_xalign(0.0);
+    let calendar_status = gtk::Label::new(Some("Syncing calendars…"));
+    calendar_status.set_xalign(0.0);
+    calendar_status.style_context().add_class("calendar-status");
     let previous = gtk::Button::with_label("󰁍");
     previous.set_tooltip_text(Some("Previous four weeks"));
     let today = gtk::Button::with_label("Today");
@@ -1064,18 +1045,13 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
     for button in [&previous, &today, &next, &manage, &refresh] {
         button.style_context().add_class("calendar-nav");
     }
-    calendar_header.pack_start(&calendar_title, true, true, 0);
+    calendar_header.pack_start(&calendar_status, true, true, 0);
     calendar_header.pack_end(&refresh, false, false, 0);
     calendar_header.pack_end(&manage, false, false, 0);
     calendar_header.pack_end(&next, false, false, 0);
     calendar_header.pack_end(&today, false, false, 0);
     calendar_header.pack_end(&previous, false, false, 0);
     root.pack_start(&calendar_header, false, false, 0);
-
-    let calendar_status = gtk::Label::new(Some("Syncing calendars…"));
-    calendar_status.set_xalign(0.0);
-    calendar_status.style_context().add_class("calendar-status");
-    root.pack_start(&calendar_status, false, false, 0);
 
     let manager = gtk::Revealer::new();
     manager.set_transition_type(gtk::RevealerTransitionType::SlideDown);
@@ -1210,34 +1186,28 @@ pub fn start(enabled: bool, monitor_index: i32, refresh_minutes: u64) -> Option<
 
     let previous_tx = calendar_tx.clone();
     let previous_period = viewed_period.clone();
-    let previous_title = calendar_title.clone();
     let previous_grid = calendar_grid.clone();
     previous.connect_clicked(move |_| {
         let period_start = shift_period(*previous_period.borrow(), -1);
         *previous_period.borrow_mut() = period_start;
-        previous_title.set_label(&format!("󰃭  {}", period_heading(period_start)));
         render_period(&previous_grid, period_start, &[]);
         fetch_calendar(previous_tx.clone(), period_start);
     });
     let next_tx = calendar_tx.clone();
     let next_period = viewed_period.clone();
-    let next_title = calendar_title.clone();
     let next_grid = calendar_grid.clone();
     next.connect_clicked(move |_| {
         let period_start = shift_period(*next_period.borrow(), 1);
         *next_period.borrow_mut() = period_start;
-        next_title.set_label(&format!("󰃭  {}", period_heading(period_start)));
         render_period(&next_grid, period_start, &[]);
         fetch_calendar(next_tx.clone(), period_start);
     });
     let today_tx = calendar_tx.clone();
     let today_period = viewed_period.clone();
-    let today_title = calendar_title.clone();
     let today_grid = calendar_grid.clone();
     today.connect_clicked(move |_| {
         let period_start = week_start(Local::now().date_naive());
         *today_period.borrow_mut() = period_start;
-        today_title.set_label(&format!("󰃭  {}", period_heading(period_start)));
         render_period(&today_grid, period_start, &[]);
         fetch_calendar(today_tx.clone(), period_start);
     });

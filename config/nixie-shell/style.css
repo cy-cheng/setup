@@ -88,7 +88,6 @@ window.nixie-desktop list { background: transparent; border: none; }
   background: alpha(@raised, 0.88);
 }
 .calendar-card { padding: 12px 14px; }
-.calendar-month-title { font-size: 22px; }
 .calendar-nav {
   min-width: 30px;
   min-height: 30px;

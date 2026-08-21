@@ -281,10 +281,15 @@ struct PopupManager {
     active: Rc<RefCell<Option<gtk::Window>>>,
 }
 
+fn close_popup(window: &gtk::Window) {
+    layer_shell::set_keyboard_mode(window, KeyboardMode::None);
+    window.hide();
+}
+
 impl PopupManager {
     fn hide_internal(&self) {
         if let Some(active) = self.active.borrow_mut().take() {
-            active.hide();
+            close_popup(&active);
         }
     }
 
@@ -301,6 +306,7 @@ impl PopupManager {
         }
 
         position_popup(popup, anchor, bar, width);
+        layer_shell::set_keyboard_mode(popup, KeyboardMode::Exclusive);
         popup.show_all();
         self.active.borrow_mut().replace(popup.clone());
     }
@@ -316,6 +322,7 @@ impl PopupManager {
         layer_shell::set_anchor(popup, Edge::Left, false);
         layer_shell::set_anchor(popup, Edge::Right, true);
         layer_shell::set_margin(popup, Edge::Right, 0);
+        layer_shell::set_keyboard_mode(popup, KeyboardMode::Exclusive);
         popup.show_all();
         self.active.borrow_mut().replace(popup.clone());
     }
@@ -400,8 +407,15 @@ fn popup(name: &str, width: i32, height: i32) -> gtk::Window {
     layer_shell::set_margin(&win, Edge::Top, 4);
     layer_shell::set_margin(&win, Edge::Left, 8);
     layer_shell::set_keyboard_mode(&win, KeyboardMode::None);
+    win.connect_key_press_event(|window, event| {
+        if event.keyval() == gdk::keys::constants::Escape {
+            close_popup(window);
+            return gtk::Inhibit(true);
+        }
+        gtk::Inhibit(false)
+    });
     win.connect_delete_event(|w, _| {
-        w.hide();
+        close_popup(w);
         gtk::Inhibit(true)
     });
     win
@@ -654,6 +668,7 @@ fn confirmed_action(
 
 fn create_system_panel(updates: glib::Sender<ModuleUpdate>) -> SystemPanelUi {
     let win = popup("nixie-system", 430, 600);
+    win.style_context().add_class("system-panel");
     let root = vbox(12);
     root.style_context().add_class("panel");
     root.pack_start(&label("System", "panel-title"), false, false, 0);

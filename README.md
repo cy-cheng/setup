@@ -21,6 +21,9 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
   notification updates; only hardware metrics and quota data use timers.
 - Network, Bluetooth, audio, battery/power-profile, idle inhibitor, workspace,
   notification-center, and local Codex-quota modules.
+- One-shot automatic timezone detection in the system panel. It uses GeoClue
+  only when requested, maps the detected coordinates locally, and applies the
+  IANA timezone through systemd's authenticated timezone service.
 - Event-driven Fcitx status plus a custom candidate UI. Candidates stay in a
   seven-item horizontal row beside the text cursor; Down expands a 5-column by
   5-row grid, arrows navigate (and continue across pages), `A` through `Y`
@@ -41,6 +44,8 @@ Hyprland 0.55+, Rust/Cargo, a C/C++ compiler, `pkgconf`, GTK3,
 `gtk-layer-shell`, libpulse, NetworkManager/libnm, WirePlumber (`wpctl`), Fcitx 5 core
 development headers, Cairo/Pango, Wayland client development headers, Dunst,
 Rofi 2, Blueberry, `powerprofilesctl`, and `jq`.
+Automatic timezone detection additionally uses GeoClue, systemd's
+`timedatectl`, and Hyprpolkitagent.
 The optional Google Calendar feed also uses `curl` for HTTPS retrieval.
 
 The divergence meter uses the locally installed `BO NX Medium` and

@@ -69,6 +69,7 @@ pub enum ModuleUpdate {
         active: u64,
     },
     Idle(bool),
+    TimezoneChanged,
 }
 
 impl ModuleUpdate {
@@ -171,6 +172,7 @@ impl ModuleUpdate {
                 state.active_llms = active;
             }
             Self::Idle(value) => state.idle_inhibited = value,
+            Self::TimezoneChanged => {}
         }
     }
 }

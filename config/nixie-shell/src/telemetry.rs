@@ -6,6 +6,16 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::UNIX_EPOCH;
+use tzf_rs::DefaultFinder;
+
+const GEOCLUE_WHERE_AM_I: &str = "/usr/lib/geoclue-2.0/demos/where-am-i";
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimezoneUpdate {
+    pub timezone: String,
+    pub changed: bool,
+    pub accuracy_km: u64,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct HyprClient {
@@ -441,6 +451,84 @@ pub fn uptime_seconds() -> u64 {
         .unwrap_or(0.0) as u64
 }
 
+pub fn current_timezone() -> String {
+    let timezone = output("timedatectl", &["show", "--property=Timezone", "--value"]);
+    if timezone.is_empty() {
+        "Unknown".into()
+    } else {
+        timezone
+    }
+}
+
+fn geoclue_value(text: &str, field: &str) -> Option<f64> {
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix(field))
+        .map(str::trim)
+        .and_then(|value| {
+            value
+                .trim_end_matches(|character: char| !character.is_ascii_digit() && character != '.')
+                .parse::<f64>()
+                .ok()
+        })
+}
+
+fn valid_timezone_name(timezone: &str) -> bool {
+    !timezone.is_empty()
+        && !timezone.starts_with('/')
+        && !timezone.contains("..")
+        && timezone.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '/' | '_' | '-' | '+')
+        })
+        && Path::new("/usr/share/zoneinfo").join(timezone).is_file()
+}
+
+pub fn detect_and_apply_timezone() -> Result<TimezoneUpdate, String> {
+    let location = Command::new(GEOCLUE_WHERE_AM_I)
+        .args(["--timeout=12", "--accuracy-level=4"])
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|_| "GeoClue location helper is unavailable".to_string())?;
+    let location_text = String::from_utf8_lossy(&location.stdout);
+    if !location.status.success() || location_text.trim().is_empty() {
+        return Err("Could not determine location; check the network and location service".into());
+    }
+    let latitude = geoclue_value(&location_text, "Latitude:")
+        .ok_or_else(|| "GeoClue returned no latitude".to_string())?;
+    let longitude = geoclue_value(&location_text, "Longitude:")
+        .ok_or_else(|| "GeoClue returned no longitude".to_string())?;
+    let accuracy_km =
+        (geoclue_value(&location_text, "Accuracy:").unwrap_or_default() / 1000.0).ceil() as u64;
+    let finder = DefaultFinder::new();
+    let timezone = finder.get_tz_name(longitude, latitude).to_string();
+    if !valid_timezone_name(&timezone) {
+        return Err("No time zone matched the detected location".into());
+    }
+    let changed = current_timezone() != timezone;
+    if changed {
+        let result = Command::new("timedatectl")
+            .args(["set-timezone", &timezone])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|_| "The system timezone service is unavailable".to_string())?;
+        if !result.status.success() {
+            let detail = String::from_utf8_lossy(&result.stderr).trim().to_string();
+            return Err(if detail.is_empty() {
+                "Authentication was cancelled; timezone was not changed".into()
+            } else {
+                format!("Could not change timezone: {detail}")
+            });
+        }
+    }
+    Ok(TimezoneUpdate {
+        timezone,
+        changed,
+        accuracy_km,
+    })
+}
+
 pub fn network() -> (String, String, String) {
     let status = output(
         "nmcli",
@@ -758,5 +846,28 @@ mod tests {
         };
         assert_eq!(notification_workspace(&firefox, &clients), None);
         assert_eq!(notification_workspace(&unknown, &clients), None);
+    }
+
+    #[test]
+    fn parses_geoclue_coordinates() {
+        let response =
+            "Latitude:    35.600000°\nLongitude:   139.317000°\nAccuracy:    25000 meters\n";
+        assert_eq!(geoclue_value(response, "Latitude:"), Some(35.6));
+        assert_eq!(geoclue_value(response, "Longitude:"), Some(139.317));
+        assert_eq!(geoclue_value(response, "Accuracy:"), Some(25000.0));
+    }
+
+    #[test]
+    fn rejects_unsafe_timezone_names() {
+        assert!(valid_timezone_name("Asia/Tokyo"));
+        assert!(!valid_timezone_name("../../etc/passwd"));
+        assert!(!valid_timezone_name("Asia/Tokyo; reboot"));
+    }
+
+    #[test]
+    fn maps_detected_coordinates_to_timezone() {
+        let finder = DefaultFinder::new();
+        assert_eq!(finder.get_tz_name(139.317, 35.6), "Asia/Tokyo");
+        assert_eq!(finder.get_tz_name(121.5654, 25.033), "Asia/Taipei");
     }
 }

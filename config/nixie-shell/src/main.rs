@@ -693,6 +693,75 @@ fn create_system_panel(updates: glib::Sender<ModuleUpdate>) -> SystemPanelUi {
 
     let controls = vbox(8);
     controls.style_context().add_class("system-section");
+
+    let timezone_row = hbox(8);
+    timezone_row.pack_start(&label("󰗊", "system-icon"), false, false, 0);
+    let timezone_text = vbox(1);
+    let timezone_name = label("Time zone", "");
+    timezone_name.set_xalign(0.0);
+    let timezone_value = label(&telemetry::current_timezone(), "muted timezone-status");
+    timezone_value.set_xalign(0.0);
+    timezone_value.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    timezone_text.pack_start(&timezone_name, false, false, 0);
+    timezone_text.pack_start(&timezone_value, false, false, 0);
+    timezone_row.pack_start(&timezone_text, true, true, 0);
+    let detect_timezone = button("panel-action timezone-action");
+    detect_timezone.set_label("Detect & apply");
+    detect_timezone.set_tooltip_text(Some(
+        "Detect once using network location and update system time zone. VPNs can affect the result.",
+    ));
+    timezone_row.pack_end(&detect_timezone, false, false, 0);
+    controls.pack_start(&timezone_row, false, false, 0);
+
+    let (timezone_tx, timezone_rx) = glib::MainContext::channel::<
+        Result<telemetry::TimezoneUpdate, String>,
+    >(glib::Priority::default());
+    let timezone_button = detect_timezone.clone();
+    let timezone_status = timezone_value.clone();
+    let timezone_updates = updates.clone();
+    let timezone_window = win.clone();
+    timezone_rx.attach(None, move |result| {
+        if timezone_window.is_visible() {
+            layer_shell::set_keyboard_mode(&timezone_window, KeyboardMode::Exclusive);
+        }
+        timezone_button.set_sensitive(true);
+        timezone_button.set_label("Detect again");
+        match result {
+            Ok(update) => {
+                timezone_status.set_text(&if update.changed {
+                    format!("{} · updated", update.timezone)
+                } else {
+                    format!("{} · already set", update.timezone)
+                });
+                if update.accuracy_km > 0 {
+                    timezone_status.set_tooltip_text(Some(&format!(
+                        "Location accuracy: approximately {} km",
+                        update.accuracy_km
+                    )));
+                }
+                let _ = timezone_updates.send(ModuleUpdate::TimezoneChanged);
+            }
+            Err(error) => {
+                timezone_status.set_text("Detection failed");
+                timezone_status.set_tooltip_text(Some(&error));
+            }
+        }
+        glib::Continue(true)
+    });
+    let timezone_status = timezone_value.clone();
+    let timezone_window = win.clone();
+    detect_timezone.connect_clicked(move |button| {
+        layer_shell::set_keyboard_mode(&timezone_window, KeyboardMode::None);
+        button.set_sensitive(false);
+        button.set_label("Detecting…");
+        timezone_status.set_text("Requesting location…");
+        timezone_status.set_tooltip_text(None);
+        let sender = timezone_tx.clone();
+        thread::spawn(move || {
+            let _ = sender.send(telemetry::detect_and_apply_timezone());
+        });
+    });
+
     let brightness_title = hbox(8);
     brightness_title.pack_start(&label("󰃠", "system-icon"), false, false, 0);
     let brightness_name = label("Brightness", "");
@@ -1612,9 +1681,12 @@ fn update_ui(ui: &Ui, s: &Snapshot, update: &ModuleUpdate) {
             ui.notifications.style_context().remove_class("unread");
         }
     }
+    if matches!(update, ModuleUpdate::TimezoneChanged) {
+        render_clock(ui);
+    }
 }
 
-fn schedule_clock(ui: Ui) {
+fn render_clock(ui: &Ui) {
     let now = Local::now();
     let separator = r#"<span font_family="CaskaydiaMono NFP" size="60%"> .</span>"#;
     ui.clock_time.set_markup(&format!(
@@ -1629,6 +1701,11 @@ fn schedule_clock(ui: Ui) {
         separator,
         now.format("%d")
     ));
+}
+
+fn schedule_clock(ui: Ui) {
+    render_clock(&ui);
+    let now = Local::now();
     let delay = Duration::from_secs((60 - now.second() as u64).max(1));
     glib::timeout_add_local_once(delay, move || schedule_clock(ui));
 }

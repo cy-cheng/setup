@@ -370,6 +370,8 @@ window.nixie-popover {
 .system-section { padding: 10px; border-radius: 8px; background: alpha(@raised, 0.72); }
 .system-icon { min-width: 24px; color: @amber; }
 .metric-value { color: @amber; font-weight: 700; }
+.timezone-status { font-size: 13px; }
+.timezone-action { padding: 2px 8px; }
 .device-name, .capture-apps { font-size: 14px; }
 .session-footer { padding-top: 4px; }
 .session-action {

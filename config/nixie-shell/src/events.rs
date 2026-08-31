@@ -70,6 +70,7 @@ pub enum ModuleUpdate {
     },
     Idle(bool),
     TimezoneChanged,
+    ToggleSystemPanel,
 }
 
 impl ModuleUpdate {
@@ -172,7 +173,7 @@ impl ModuleUpdate {
                 state.active_llms = active;
             }
             Self::Idle(value) => state.idle_inhibited = value,
-            Self::TimezoneChanged => {}
+            Self::TimezoneChanged | Self::ToggleSystemPanel => {}
         }
     }
 }

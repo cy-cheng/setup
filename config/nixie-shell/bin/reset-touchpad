@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -u
+
+helper="/usr/local/libexec/nixie-touchpad-recover"
+if [[ ! -x $helper ]]; then
+    notify-send -u critical "Touchpad recovery unavailable" "Run the setup installer to add the system helper."
+    exit 1
+fi
+
+if pkexec "$helper"; then
+    notify-send "Touchpad recovered" "The I2C-HID device was reset without rebooting."
+else
+    notify-send -u critical "Touchpad recovery failed" "Authentication was cancelled or the device did not rebind."
+    exit 1
+fi

@@ -24,6 +24,7 @@ use std::time::Duration;
 use telemetry::Snapshot;
 
 const LOCK_SESSION_HELPER: &str = "/home/brine/.config/hypr/scripts/lock-session.sh";
+const CONTROL_SOCKET_NAME: &str = "nixie-shell-control.sock";
 
 #[derive(Clone, Deserialize)]
 struct Commands {
@@ -1148,6 +1149,48 @@ fn monitor_input(tx: glib::Sender<FcitxMessage>) {
     });
 }
 
+fn control_socket_path() -> PathBuf {
+    let runtime = std::env::var("XDG_RUNTIME_DIR")
+        .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::geteuid() }));
+    PathBuf::from(runtime).join(CONTROL_SOCKET_NAME)
+}
+
+fn send_control(command: &[u8]) -> Result<()> {
+    let socket = UnixDatagram::unbound().context("create Nixie control socket")?;
+    socket
+        .connect(control_socket_path())
+        .context("connect to the running Nixie shell")?;
+    socket.send(command).context("send Nixie shell command")?;
+    Ok(())
+}
+
+fn monitor_control(tx: glib::Sender<ModuleUpdate>) {
+    thread::spawn(move || {
+        let socket_path = control_socket_path();
+        let _ = fs::remove_file(&socket_path);
+        let Ok(socket) = UnixDatagram::bind(&socket_path) else {
+            log::warn!("cannot bind shell control socket");
+            return;
+        };
+        loop {
+            let mut data = [0u8; 64];
+            match socket.recv(&mut data) {
+                Ok(size) if data[..size] == *b"toggle-system" => {
+                    if tx.send(ModuleUpdate::ToggleSystemPanel).is_err() {
+                        break;
+                    }
+                }
+                Ok(_) => log::warn!("ignored unknown shell control command"),
+                Err(error) => {
+                    log::warn!("shell control socket stopped: {error}");
+                    break;
+                }
+            }
+        }
+        let _ = fs::remove_file(socket_path);
+    });
+}
+
 fn build_bar(
     config: &Config,
     metadata: Rc<RefCell<VecDeque<NotificationMeta>>>,
@@ -1717,6 +1760,10 @@ fn load_config(path: &Path) -> Result<Config> {
 
 fn main() -> Result<()> {
     simple_logger::init_with_level(log::Level::Info).ok();
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|argument| argument == "--open-system") {
+        return send_control(b"toggle-system");
+    }
     let async_runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
         .enable_all()
@@ -1724,7 +1771,6 @@ fn main() -> Result<()> {
         .context("initialize async runtime")?;
     let _async_guard = async_runtime.enter();
     gtk::init().context("initialize GTK")?;
-    let args: Vec<String> = std::env::args().collect();
     let path = args
         .windows(2)
         .find(|x| x[0] == "--config")
@@ -1748,6 +1794,7 @@ fn main() -> Result<()> {
     let (meta_tx, meta_rx) = glib::MainContext::channel(glib::Priority::default());
     let (input_tx, input_rx) = glib::MainContext::channel(glib::Priority::default());
     monitor_input(input_tx);
+    monitor_control(update_tx.clone());
     let (win, ui) = build_bar(&config, metadata.clone(), update_tx.clone());
     let _divergence = divergence::start(
         config.divergence.enabled,
@@ -1866,6 +1913,9 @@ fn main() -> Result<()> {
             for generation in update_generations.iter() {
                 generation.set(generation.get().wrapping_add(1));
             }
+        }
+        if matches!(render, ModuleUpdate::ToggleSystemPanel) {
+            update_ui_ref.system.emit_clicked();
         }
         update_ui(&update_ui_ref, &current, &render);
         glib::Continue(true)

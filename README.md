@@ -24,6 +24,14 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
 - One-shot automatic timezone detection in the system panel. It uses GeoClue
   only when requested, maps the detected coordinates locally, and applies the
   IANA timezone through systemd's authenticated timezone service.
+- Recovery for the UX3402ZA's intermittent I2C-HID touchpad hang. Runtime
+  suspend is disabled only for the touchpad controller, and the touchpad is
+  automatically rebound after system resume. `Super+Shift+T` performs the same
+  targeted recovery on demand without rebooting.
+- A context-aware hardware power button. It only wakes a sleeping display (or
+  a suspended, locked session), but opens a Nixie action menu while the desktop
+  is awake. Log out, reboot, and power off require a second confirmation that
+  expires after five seconds; suspend locks the session first.
 - Event-driven Fcitx status plus a custom candidate UI. Candidates stay in a
   seven-item horizontal row beside the text cursor; Down expands a 5-column by
   5-row grid, arrows navigate (and continue across pages), `A` through `Y`
@@ -46,6 +54,9 @@ development headers, Cairo/Pango, Wayland client development headers, Dunst,
 Rofi 2, Blueberry, `powerprofilesctl`, and `jq`.
 Automatic timezone detection additionally uses GeoClue, systemd's
 `timedatectl`, and Hyprpolkitagent.
+Touchpad recovery and power-button handling additionally use Polkit and `flock`
+from util-linux. Their fixed, root-owned support files are installed with an
+authentication prompt; the user-facing commands themselves remain unprivileged.
 The optional Google Calendar feed also uses `curl` for HTTPS retrieval.
 
 The divergence meter uses the locally installed `BO NX Medium` and

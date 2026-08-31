@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+device="i2c-ASUE140D:00"
+device_path="/sys/bus/i2c/devices/$device"
+driver_path="/sys/bus/i2c/drivers/i2c_hid_acpi"
+controller_path="/sys/devices/pci0000:00/0000:00:15.0/i2c_designware.0"
+product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+
+if [[ $(id -u) -ne 0 ]]; then
+    printf 'nixie-touchpad-recover must run as root\n' >&2
+    exit 77
+fi
+
+if [[ $product_name != *UX3402ZA* ]]; then
+    printf 'unsupported system for this touchpad recovery: %s\n' "$product_name" >&2
+    exit 69
+fi
+
+exec 9>/run/lock/nixie-touchpad-recover.lock
+flock -n 9 || exit 0
+
+for path in "$device_path" "$driver_path/bind" "$driver_path/unbind" "$controller_path/power/control"; do
+    if [[ ! -e $path ]]; then
+        logger -t nixie-touchpad-recover "required path is missing: $path"
+        exit 1
+    fi
+done
+
+# This controller serves only the built-in touchpad. Avoid the runtime-power
+# transition that precedes the corrupt I2C-HID reports on the UX3402ZA.
+printf 'on' >"$controller_path/power/control"
+
+if [[ -L $device_path/driver ]]; then
+    printf '%s' "$device" >"$driver_path/unbind"
+fi
+sleep 0.5
+printf '%s' "$device" >"$driver_path/bind"
+printf 'on' >"$controller_path/power/control"
+
+if [[ ! -L $device_path/driver ]]; then
+    logger -t nixie-touchpad-recover "failed to rebind $device"
+    exit 1
+fi
+
+logger -t nixie-touchpad-recover "recovered $device and disabled controller runtime suspend"

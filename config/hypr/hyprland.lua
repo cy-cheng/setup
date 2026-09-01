@@ -124,7 +124,7 @@ hl.device({ name = "epic-mouse-v1", sensitivity = -0.5 })
 
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + C", hl.dsp.window.close())
-hl.bind(mainMod .. " + Delete", hl.dsp.exec_cmd("/home/brine/.config/nixie-shell/bin/power-button"))
+hl.bind(mainMod .. " + Delete", hl.dsp.exec_cmd("/home/brine/.config/hypr/scripts/lock-session.sh"))
 hl.bind(mainMod .. " + M", hl.dsp.layout("togglesplit"))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))

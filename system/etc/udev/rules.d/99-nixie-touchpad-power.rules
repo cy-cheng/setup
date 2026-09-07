@@ -1,3 +1,4 @@
 # The ASUE140D touchpad is the only device on this UX3402ZA I2C controller.
 # Runtime suspend intermittently leaves it returning corrupt HID report sizes.
+ACTION=="add", SUBSYSTEM=="pci", KERNEL=="0000:00:15.0", ATTR{vendor}=="0x8086", ATTR{device}=="0x51e8", TEST=="power/control", ATTR{power/control}="on"
 ACTION=="add", SUBSYSTEM=="platform", KERNEL=="i2c_designware.0", KERNELS=="0000:00:15.0", TEST=="power/control", ATTR{power/control}="on"

@@ -25,9 +25,10 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
   only when requested, maps the detected coordinates locally, and applies the
   IANA timezone through systemd's authenticated timezone service.
 - Recovery for the UX3402ZA's intermittent I2C-HID touchpad hang. Runtime
-  suspend is disabled only for the touchpad controller, and the touchpad is
-  automatically rebound after system resume. `Super+Shift+T` performs the same
-  targeted recovery on demand without rebooting.
+  suspend is disabled only for the dedicated touchpad PCI/controller path, and
+  the touchpad is automatically rebound after system resume. If the I2C bus is
+  wedged, recovery escalates to a controller reset. `Super+Shift+T` performs the
+  same targeted recovery on demand without rebooting.
 - A context-aware hardware power button. It only wakes a sleeping display (or
   a suspended, locked session), but opens a Nixie action menu while the desktop
   is awake. Log out, reboot, and power off require a second confirmation that

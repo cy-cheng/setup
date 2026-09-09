@@ -7,7 +7,7 @@ use pulse::mainloop::standard::{IterateResult, Mainloop};
 use std::ffi::CString;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 use zbus::{MatchRule, MessageStream, MessageType, Proxy};
@@ -376,20 +376,77 @@ pub fn start_metrics(tx: Sender<ModuleUpdate>, metrics_seconds: u64) {
 }
 
 pub fn start_llm(tx: Sender<ModuleUpdate>, llm_seconds: u64) {
-    thread::spawn(move || loop {
-        let (remaining, reset, active) = telemetry::llm();
-        if tx
-            .send(ModuleUpdate::Llm {
-                remaining,
-                reset,
-                active,
-            })
-            .is_err()
-        {
-            return;
+    thread::spawn(move || {
+        let watcher = codex_session_watcher();
+        loop {
+            let (remaining, reset, active) = telemetry::llm();
+            if tx
+                .send(ModuleUpdate::Llm {
+                    remaining,
+                    reset,
+                    active,
+                })
+                .is_err()
+            {
+                if let Some(descriptor) = watcher {
+                    unsafe { libc::close(descriptor) };
+                }
+                return;
+            }
+            if let Some(descriptor) = watcher {
+                wait_for_codex_change(descriptor, llm_seconds.max(1));
+            } else {
+                thread::sleep(Duration::from_secs(llm_seconds.max(1)));
+            }
         }
-        thread::sleep(Duration::from_secs(llm_seconds.max(1)));
     });
+}
+
+fn add_codex_watches(descriptor: i32, path: &Path) {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
+    if let Ok(path) = CString::new(path.to_string_lossy().as_bytes()) {
+        unsafe {
+            libc::inotify_add_watch(
+                descriptor,
+                path.as_ptr(),
+                libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_MODIFY | libc::IN_CLOSE_WRITE,
+            );
+        }
+    }
+    for entry in entries.flatten() {
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            add_codex_watches(descriptor, &entry.path());
+        }
+    }
+}
+
+fn codex_session_watcher() -> Option<i32> {
+    let root = dirs::home_dir()?.join(".codex/sessions");
+    let descriptor = unsafe { libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK) };
+    if descriptor < 0 {
+        return None;
+    }
+    add_codex_watches(descriptor, &root);
+    Some(descriptor)
+}
+
+fn wait_for_codex_change(descriptor: i32, fallback_seconds: u64) {
+    let timeout = fallback_seconds.saturating_mul(1_000).min(i32::MAX as u64) as i32;
+    let mut poll = libc::pollfd {
+        fd: descriptor,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    if unsafe { libc::poll(&mut poll, 1, timeout) } <= 0 {
+        return;
+    }
+    // Codex can append several records in one burst. Let the write finish, then
+    // drain all pending events so one response produces one UI refresh.
+    thread::sleep(Duration::from_millis(100));
+    let mut buffer = [0u8; 4096];
+    while unsafe { libc::read(descriptor, buffer.as_mut_ptr().cast(), buffer.len()) } > 0 {}
 }
 
 pub fn start_reconcile(tx: Sender<ModuleUpdate>, reconcile_seconds: u64) {

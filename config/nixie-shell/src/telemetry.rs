@@ -657,14 +657,35 @@ fn latest_jsonl(path: &Path) -> Option<PathBuf> {
     result.map(|x| x.1)
 }
 
-fn number_after(data: &str, key: &str) -> Option<f64> {
-    let tail = &data[data.find(key)? + key.len()..];
-    let value = tail[tail.find(':')? + 1..].trim_start();
-    let n = value
-        .chars()
-        .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
-        .count();
-    value.get(..n)?.parse().ok()
+fn quota_values_from_tail(data: &[u8]) -> Option<(i64, u64)> {
+    let tail = String::from_utf8_lossy(data);
+    for line in tail.lines().rev() {
+        let Ok(value) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let Some(rate_limits) = value
+            .pointer("/payload/rate_limits")
+            .or_else(|| value.get("rate_limits"))
+        else {
+            continue;
+        };
+        if rate_limits.get("limit_id").and_then(Value::as_str) != Some("codex") {
+            continue;
+        }
+        let Some(used) = rate_limits
+            .pointer("/primary/used_percent")
+            .and_then(Value::as_f64)
+        else {
+            continue;
+        };
+        let remaining = (100.0 - used).round().clamp(0.0, 100.0) as i64;
+        let resets_at = rate_limits
+            .pointer("/primary/resets_at")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        return Some((remaining, resets_at));
+    }
+    None
 }
 
 fn codex_quota() -> (i64, String) {
@@ -677,27 +698,19 @@ fn codex_quota() -> (i64, String) {
     };
     let len = f.metadata().map(|m| m.len()).unwrap_or(0);
     let _ = f.seek(SeekFrom::Start(len.saturating_sub(2_000_000)));
-    let mut tail = String::new();
-    let _ = f.read_to_string(&mut tail);
-    for line in tail.lines().rev() {
-        let Some(pos) = line.find("\"limit_id\":\"codex\"") else {
-            continue;
-        };
-        let q = &line[pos..];
-        let Some(used) = number_after(q, "\"used_percent\"") else {
-            continue;
-        };
-        let remaining = (100.0 - used).round().clamp(0.0, 100.0) as i64;
-        let reset = number_after(q, "\"resets_at\"")
-            .map(|v| {
-                DateTime::<Local>::from(UNIX_EPOCH + std::time::Duration::from_secs(v as u64))
-                    .format("%a %H:%M")
-                    .to_string()
-            })
-            .unwrap_or_else(|| "Unknown".into());
-        return (remaining, reset);
-    }
-    (-1, "Unknown".into())
+    let mut tail = Vec::new();
+    let _ = f.read_to_end(&mut tail);
+    let Some((remaining, resets_at)) = quota_values_from_tail(&tail) else {
+        return (-1, "Unknown".into());
+    };
+    let reset = if resets_at == 0 {
+        "Unknown".into()
+    } else {
+        DateTime::<Local>::from(UNIX_EPOCH + std::time::Duration::from_secs(resets_at))
+            .format("%a %H:%M")
+            .to_string()
+    };
+    (remaining, reset)
 }
 
 pub fn metrics(previous: &CpuSample) -> (u64, u64, i64, CpuSample) {
@@ -785,6 +798,24 @@ pub fn history() -> Vec<HistoryItem> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_latest_codex_quota_from_jsonl_tail() {
+        let data = br#"{"payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":12.4,"resets_at":100}}}}
+{"payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":51.0,"resets_at":200}}}}
+"#;
+        assert_eq!(quota_values_from_tail(data), Some((49, 200)));
+    }
+
+    #[test]
+    fn quota_tail_tolerates_a_partial_multibyte_character() {
+        let mut data = vec![0x80, 0x80, b'\n'];
+        data.extend_from_slice(
+            br#"{"payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":25.0,"resets_at":300}}}}
+"#,
+        );
+        assert_eq!(quota_values_from_tail(&data), Some((75, 300)));
+    }
 
     fn client(pid: u32, workspace: i32, class: &str) -> HyprClient {
         HyprClient {

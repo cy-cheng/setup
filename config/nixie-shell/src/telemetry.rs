@@ -636,28 +636,34 @@ fn active_llms() -> u64 {
         .count() as u64
 }
 
-fn latest_jsonl(path: &Path) -> Option<PathBuf> {
-    let mut result = None;
-    for entry in fs::read_dir(path).ok()?.flatten() {
+fn collect_jsonl(path: &Path, result: &mut Vec<(std::time::SystemTime, PathBuf)>) {
+    let Ok(entries) = fs::read_dir(path) else {
+        return;
+    };
+    for entry in entries.flatten() {
         let p = entry.path();
         if p.is_dir() {
-            if let Some(child) = latest_jsonl(&p) {
-                let t = fs::metadata(&child).ok()?.modified().ok()?;
-                if result.as_ref().is_none_or(|(old, _)| t > *old) {
-                    result = Some((t, child));
-                }
-            }
+            collect_jsonl(&p, result);
         } else if p.extension().and_then(|x| x.to_str()) == Some("jsonl") {
-            let t = entry.metadata().ok()?.modified().ok()?;
-            if result.as_ref().is_none_or(|(old, _)| t > *old) {
-                result = Some((t, p));
+            if let Ok(modified) = entry.metadata().and_then(|metadata| metadata.modified()) {
+                result.push((modified, p));
             }
         }
     }
-    result.map(|x| x.1)
 }
 
-fn quota_values_from_tail(data: &[u8]) -> Option<(i64, u64)> {
+fn recent_jsonl(path: &Path, limit: usize) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    collect_jsonl(path, &mut files);
+    files.sort_unstable_by(|left, right| right.0.cmp(&left.0));
+    files
+        .into_iter()
+        .take(limit)
+        .map(|(_, path)| path)
+        .collect()
+}
+
+fn quota_values_from_tail(data: &[u8]) -> Option<(String, i64, u64)> {
     let tail = String::from_utf8_lossy(data);
     for line in tail.lines().rev() {
         let Ok(value) = serde_json::from_str::<Value>(line) else {
@@ -683,24 +689,38 @@ fn quota_values_from_tail(data: &[u8]) -> Option<(i64, u64)> {
             .pointer("/primary/resets_at")
             .and_then(Value::as_u64)
             .unwrap_or(0);
-        return Some((remaining, resets_at));
+        let timestamp = value
+            .get("timestamp")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        return Some((timestamp, remaining, resets_at));
     }
     None
 }
 
 fn codex_quota() -> (i64, String) {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/home/brine"));
-    let Some(path) = latest_jsonl(&home.join(".codex/sessions")) else {
-        return (-1, "Unknown".into());
-    };
-    let Ok(mut f) = File::open(path) else {
-        return (-1, "Unknown".into());
-    };
-    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
-    let _ = f.seek(SeekFrom::Start(len.saturating_sub(2_000_000)));
-    let mut tail = Vec::new();
-    let _ = f.read_to_end(&mut tail);
-    let Some((remaining, resets_at)) = quota_values_from_tail(&tail) else {
+    let mut newest = None;
+    for path in recent_jsonl(&home.join(".codex/sessions"), 12) {
+        let Ok(mut file) = File::open(path) else {
+            continue;
+        };
+        let len = file.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+        let _ = file.seek(SeekFrom::Start(len.saturating_sub(1_000_000)));
+        let mut tail = Vec::new();
+        let _ = file.read_to_end(&mut tail);
+        let Some(candidate) = quota_values_from_tail(&tail) else {
+            continue;
+        };
+        if newest
+            .as_ref()
+            .is_none_or(|current: &(String, i64, u64)| candidate.0 > current.0)
+        {
+            newest = Some(candidate);
+        }
+    }
+    let Some((_, remaining, resets_at)) = newest else {
         return (-1, "Unknown".into());
     };
     let reset = if resets_at == 0 {
@@ -801,20 +821,26 @@ mod tests {
 
     #[test]
     fn parses_latest_codex_quota_from_jsonl_tail() {
-        let data = br#"{"payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":12.4,"resets_at":100}}}}
-{"payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":51.0,"resets_at":200}}}}
+        let data = br#"{"timestamp":"2026-09-09T01:00:00Z","payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":12.4,"resets_at":100}}}}
+{"timestamp":"2026-09-09T02:00:00Z","payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":51.0,"resets_at":200}}}}
 "#;
-        assert_eq!(quota_values_from_tail(data), Some((49, 200)));
+        assert_eq!(
+            quota_values_from_tail(data),
+            Some(("2026-09-09T02:00:00Z".into(), 49, 200))
+        );
     }
 
     #[test]
     fn quota_tail_tolerates_a_partial_multibyte_character() {
         let mut data = vec![0x80, 0x80, b'\n'];
         data.extend_from_slice(
-            br#"{"payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":25.0,"resets_at":300}}}}
+            br#"{"timestamp":"2026-09-09T03:00:00Z","payload":{"rate_limits":{"limit_id":"codex","primary":{"used_percent":25.0,"resets_at":300}}}}
 "#,
         );
-        assert_eq!(quota_values_from_tail(&data), Some((75, 300)));
+        assert_eq!(
+            quota_values_from_tail(&data),
+            Some(("2026-09-09T03:00:00Z".into(), 75, 300))
+        );
     }
 
     fn client(pid: u32, workspace: i32, class: &str) -> HyprClient {

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+setsid --fork /home/brine/.config/nixie-shell/backend/nm-menu \
+    </dev/null >>"$runtime_dir/nixie-network-menu.log" 2>&1

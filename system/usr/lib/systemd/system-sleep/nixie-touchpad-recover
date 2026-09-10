@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if [ "$1" = post ]; then
+    /usr/local/libexec/nixie-touchpad-recover || \
+        logger -t nixie-touchpad-recover "automatic post-$2 recovery failed"
+fi

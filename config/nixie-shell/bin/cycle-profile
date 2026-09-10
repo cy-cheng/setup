@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "$(powerprofilesctl get)" in
+    power-saver) next="balanced" ;;
+    balanced) next="performance" ;;
+    *) next="power-saver" ;;
+esac
+powerprofilesctl set "$next"

@@ -1,0 +1,405 @@
+@define-color bg #070605;
+@define-color surface #12100d;
+@define-color raised #1c1711;
+@define-color border #44301e;
+@define-color amber #ffac32;
+@define-color amber_dim #c97824;
+@define-color text #e8ded1;
+@define-color muted #918477;
+@define-color success #a8c97a;
+@define-color critical #ff5c57;
+
+* {
+  font-family: "CaskaydiaMono NFP", "Noto Sans TC", sans-serif;
+  font-size: 18px;
+}
+
+window.nixie-bar {
+  background: @bg;
+  color: @text;
+}
+
+window.nixie-divergence {
+  background: transparent;
+}
+
+window.nixie-desktop {
+  background: alpha(@surface, 0.62);
+  border: 1px solid alpha(@amber_dim, 0.72);
+  border-radius: 13px;
+  color: @text;
+}
+window.nixie-desktop button {
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+  transition: none;
+}
+.desktop-card { padding: 15px; }
+.desktop-title { color: @amber; font-size: 17px; font-weight: 700; }
+.desktop-summary, .calendar-status, .calendar-event-time, .desktop-empty {
+  color: @muted;
+  font-size: 13px;
+}
+.todo-entry {
+  min-height: 34px;
+  padding: 2px 9px;
+  border: 1px solid alpha(@border, 0.82);
+  border-radius: 8px;
+  background: alpha(@bg, 0.62);
+  color: @text;
+}
+.todo-entry:focus { border-color: @amber_dim; }
+.todo-add, .todo-remove, .calendar-refresh, .calendar-add {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid alpha(@border, 0.72);
+  border-radius: 8px;
+  background: alpha(@raised, 0.72);
+  color: @amber;
+}
+.todo-add:hover, .todo-add:focus, .todo-add:active,
+.calendar-refresh:hover, .calendar-refresh:focus, .calendar-refresh:active,
+.calendar-add:hover, .calendar-add:focus, .calendar-add:active {
+  border-color: @amber_dim;
+  background: alpha(@raised, 0.96);
+  color: @amber;
+}
+.todo-row { padding: 5px 3px; }
+window.nixie-desktop scrolledwindow,
+window.nixie-desktop scrolledwindow viewport,
+window.nixie-desktop list { background: transparent; border: none; }
+.todo-row checkbutton { color: @text; }
+.todo-row checkbutton.done { color: @muted; }
+.todo-row checkbutton check {
+  min-width: 17px;
+  min-height: 17px;
+  margin-right: 7px;
+  border: 1px solid @amber_dim;
+  border-radius: 5px;
+  background: alpha(@bg, 0.56);
+}
+.todo-row checkbutton check:checked { background: @amber; color: @bg; }
+.todo-remove { color: @muted; border-color: transparent; background: transparent; }
+.todo-remove:hover, .todo-remove:focus, .todo-remove:active {
+  color: @critical;
+  border-color: alpha(@critical, 0.48);
+  background: alpha(@raised, 0.88);
+}
+.calendar-card { padding: 12px 14px; }
+.calendar-nav {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid alpha(@border, 0.72);
+  border-radius: 7px;
+  background: alpha(@raised, 0.78);
+  color: @text;
+}
+.calendar-nav:hover, .calendar-nav:focus, .calendar-nav:active {
+  border-color: @amber_dim;
+  background: alpha(@raised, 0.97);
+  color: @amber;
+}
+.calendar-manager {
+  padding: 9px;
+  border: 1px solid alpha(@border, 0.76);
+  border-radius: 9px;
+  background: alpha(@bg, 0.84);
+}
+.calendar-manager-title {
+  color: @muted;
+  font-size: 12px;
+  font-weight: 700;
+}
+.calendar-setup {
+  padding: 9px;
+  border: 1px solid alpha(@border, 0.62);
+  border-radius: 8px;
+  background: alpha(@raised, 0.82);
+  color: @muted;
+}
+.calendar-setup label, .calendar-setup entry, .calendar-setup button { font-size: 13px; }
+.calendar-setup entry {
+  min-height: 30px;
+  border: 1px solid alpha(@border, 0.78);
+  border-radius: 7px;
+  background: alpha(@bg, 0.64);
+  color: @text;
+}
+.calendar-setup button {
+  min-height: 30px;
+  border-radius: 7px;
+  background: alpha(@raised, 0.68);
+  color: @text;
+}
+.calendar-setup button:hover, .calendar-setup button:focus, .calendar-setup button:active {
+  color: @amber;
+  background: alpha(@raised, 0.94);
+}
+.calendar-feed {
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: alpha(@raised, 0.54);
+  color: @text;
+}
+.calendar-feed label { font-size: 13px; }
+.calendar-feed-color {
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  border: 1px solid alpha(@border, 0.62);
+  border-radius: 7px;
+  background: alpha(@bg, 0.72);
+}
+.calendar-feed-color:hover, .calendar-feed-color:focus, .calendar-feed-color:active {
+  background: alpha(@raised, 0.96);
+}
+.calendar-feed-remove {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: alpha(@raised, 0.72);
+  color: @muted;
+}
+.calendar-feed-remove:hover, .calendar-feed-remove:focus, .calendar-feed-remove:active {
+  border-color: alpha(@critical, 0.48);
+  background: alpha(@raised, 0.94);
+  color: @critical;
+}
+
+.calendar-grid { background: transparent; }
+.calendar-weekday {
+  padding: 2px 0;
+  color: @muted;
+  font-size: 14px;
+  font-weight: 700;
+}
+.calendar-day {
+  min-width: 116px;
+  min-height: 72px;
+  padding: 4px 5px;
+  border: 1px solid alpha(@border, 0.72);
+  border-radius: 6px;
+  background: alpha(@bg, 0.68);
+  color: @text;
+}
+.calendar-day.today {
+  border-color: @amber_dim;
+  background: alpha(@raised, 0.88);
+}
+.calendar-day-number {
+  color: @muted;
+  font-size: 15px;
+  font-weight: 700;
+}
+.calendar-day.today .calendar-day-number { color: @amber; }
+.calendar-chip {
+  min-height: 24px;
+  padding: 0 4px;
+  border-width: 0 0 0 3px;
+  border-style: solid;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.calendar-chip label { font-size: 15px; }
+.calendar-more {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: @muted;
+  font-size: 14px;
+}
+.calendar-more:hover, .calendar-more:focus, .calendar-more:active {
+  background: alpha(@raised, 0.96);
+  color: @amber;
+}
+
+.calendar-color-0 { color: #ffb347; }
+.calendar-color-1 { color: #65a9ff; }
+.calendar-color-2 { color: #80c98f; }
+.calendar-color-3 { color: #d98cff; }
+.calendar-color-4 { color: #55c8c2; }
+.calendar-color-5 { color: #ff7770; }
+.calendar-chip.calendar-color-0 { border-color: #ffb347; background: alpha(#ffb347, 0.18); color: #ffd18a; }
+.calendar-chip.calendar-color-1 { border-color: #65a9ff; background: alpha(#65a9ff, 0.18); color: #a9d0ff; }
+.calendar-chip.calendar-color-2 { border-color: #80c98f; background: alpha(#80c98f, 0.18); color: #b7e4c0; }
+.calendar-chip.calendar-color-3 { border-color: #d98cff; background: alpha(#d98cff, 0.18); color: #eabaff; }
+.calendar-chip.calendar-color-4 { border-color: #55c8c2; background: alpha(#55c8c2, 0.18); color: #9ce1dd; }
+.calendar-chip.calendar-color-5 { border-color: #ff7770; background: alpha(#ff7770, 0.18); color: #ffb1ad; }
+.calendar-chip.calendar-color-0:hover, .calendar-chip.calendar-color-0:focus { background: alpha(#ffb347, 0.38); }
+.calendar-chip.calendar-color-1:hover, .calendar-chip.calendar-color-1:focus { background: alpha(#65a9ff, 0.38); }
+.calendar-chip.calendar-color-2:hover, .calendar-chip.calendar-color-2:focus { background: alpha(#80c98f, 0.38); }
+.calendar-chip.calendar-color-3:hover, .calendar-chip.calendar-color-3:focus { background: alpha(#d98cff, 0.38); }
+.calendar-chip.calendar-color-4:hover, .calendar-chip.calendar-color-4:focus { background: alpha(#55c8c2, 0.38); }
+.calendar-chip.calendar-color-5:hover, .calendar-chip.calendar-color-5:focus { background: alpha(#ff7770, 0.38); }
+
+popover.calendar-event-popover > contents {
+  border: 1px solid alpha(@amber_dim, 0.78);
+  border-radius: 10px;
+  background: alpha(@surface, 0.98);
+  color: @text;
+}
+.calendar-event-details { min-width: 250px; padding: 11px; }
+.calendar-detail-title { color: @text; font-size: 14px; font-weight: 700; }
+.calendar-detail-source, .calendar-detail-meta { font-size: 12px; }
+.calendar-detail-meta { color: @muted; }
+.calendar-day-detail {
+  padding: 5px 7px;
+  border: 1px solid alpha(@border, 0.58);
+  border-radius: 6px;
+  background: alpha(@raised, 0.78);
+}
+.calendar-day-detail:hover, .calendar-day-detail:focus {
+  border-color: alpha(@amber_dim, 0.75);
+  background: @raised;
+}
+.calendar-day-detail label { font-size: 12px; }
+.calendar-detail-open {
+  margin-top: 4px;
+  min-height: 28px;
+  border: 1px solid alpha(@border, 0.72);
+  border-radius: 7px;
+  background: alpha(@raised, 0.92);
+  color: @amber;
+}
+.calendar-detail-open:hover, .calendar-detail-open:focus {
+  border-color: @amber_dim;
+  background: @raised;
+}
+
+.bar-root { padding: 0 10px; }
+.bar-left, .bar-right { min-height: 42px; }
+
+button.module, .module {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid alpha(@border, 0.72);
+  border-radius: 8px;
+  background: alpha(@surface, 0.94);
+  color: @text;
+  box-shadow: none;
+  transition: none;
+}
+
+button.module:hover {
+  border-color: @amber_dim;
+  background: @raised;
+  color: @amber;
+}
+
+button.idle.active, button.idle.active:hover {
+  border-color: @amber;
+  background: @amber;
+  color: @bg;
+}
+
+button.power.charging, button.power.charging:hover {
+  border-color: alpha(@success, 0.78);
+  color: @success;
+}
+
+button.power.battery-low, button.power.battery-low:hover {
+  border-color: alpha(@critical, 0.78);
+  color: @critical;
+}
+
+button.power.battery-critical, button.power.battery-critical:hover {
+  border-color: @critical;
+  background: alpha(@critical, 0.16);
+  color: @critical;
+}
+
+.workspace { min-width: 27px; min-height: 38px; padding: 0; color: @muted; }
+.workspace label { padding: 0; font-size: 20px; }
+.workspace.active { background: @amber; color: @bg; }
+.workspace.notification-alert, .workspace.notification-alert:hover {
+  border-color: @critical;
+  background: @critical;
+  color: @bg;
+}
+.hardware { color: @muted; font-size: 18px; }
+.system { min-width: 32px; padding: 0 7px; color: @amber; }
+.microphone-privacy, .microphone-privacy:hover {
+  min-width: 30px;
+  padding: 0 6px;
+  border-color: @critical;
+  color: @critical;
+}
+.clock-time, .clock-date {
+  font-family: "BO NX Medium", "BO NX";
+  font-size: 32px;
+  font-weight: 700;
+}
+.clock { padding: 0 12px; }
+.clock label { padding: 0; margin-top: 1px; margin-bottom: -9px; }
+.clock-time { color: @amber; }
+.clock-date, .muted { color: @muted; }
+.input { color: @amber; font-family: "Noto Sans TC"; font-weight: 700; }
+.network-icon { color: @amber; }
+.vpn, .connected, .profile { color: @success; }
+.critical, .muted-state { color: @critical; }
+.discord { color: #8796dc; }
+.notifications.unread { color: @amber; }
+.notifications.paused { color: @critical; }
+.tray-item { padding: 3px 5px; border-radius: 6px; }
+.tray-item:hover { background: alpha(@amber, 0.12); }
+
+tooltip.background {
+  border: 1px solid @border;
+  border-radius: 7px;
+  background: alpha(@raised, 0.45);
+}
+tooltip label { padding: 7px 9px; color: @text; font-family: "Noto Sans TC"; }
+
+window.nixie-popover {
+  background: alpha(@surface, 0.45);
+  border: 1px solid @border;
+  border-radius: 12px;
+  color: @text;
+}
+.panel { padding: 16px; }
+.panel-title { color: @amber; font-size: 18px; font-weight: 700; }
+.panel-row { padding: 8px; border-radius: 7px; background: alpha(@raised, 0.75); }
+.panel-row:hover { background: alpha(@amber, 0.12); }
+.panel-action { min-width: 28px; min-height: 28px; border-radius: 7px; color: @text; }
+.panel-action:hover { background: alpha(@amber, 0.16); color: @amber; }
+.system-section { padding: 10px; border-radius: 8px; background: alpha(@raised, 0.72); }
+.system-icon { min-width: 24px; color: @amber; }
+.metric-value { color: @amber; font-weight: 700; }
+.timezone-status { font-size: 13px; }
+.timezone-action { padding: 2px 8px; }
+.device-name, .capture-apps { font-size: 14px; }
+.session-footer { padding-top: 4px; }
+.session-action {
+  min-height: 32px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: alpha(@raised, 0.75);
+  color: @text;
+  font-size: 14px;
+}
+.session-action:hover { background: alpha(@amber, 0.16); color: @amber; }
+.session-action.disabled { color: @muted; }
+scale trough { min-height: 5px; border-radius: 4px; background: alpha(@muted, 0.32); }
+scale highlight { border-radius: 4px; background: @amber; }
+scale slider { min-width: 16px; min-height: 16px; border-radius: 9px; background: @text; }
+
+calendar { padding: 8px; color: @text; }
+calendar:selected { background: @amber; color: @bg; border-radius: 5px; }
+calendar.header { color: @amber; }
+
+window.nixie-candidates {
+  background: alpha(@surface, 0.45);
+  border: 1px solid @amber_dim;
+  border-radius: 9px;
+  color: @text;
+}
+.candidate-root { padding: 8px; }
+.candidate-preedit { padding: 2px 5px 5px; color: @amber; font-family: "Noto Sans TC"; font-size: 15px; }
+.candidate-item { padding: 6px 8px; border-radius: 6px; color: @text; font-family: "Noto Sans Mono", monospace; font-size: 15px; }
+.candidate-item.selected { background: @amber; color: @bg; font-weight: 700; }
+.candidate-page { padding: 4px 5px 1px; color: @muted; font-size: 11px; }

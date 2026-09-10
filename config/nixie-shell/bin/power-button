@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -u
+
+lock_file="${XDG_RUNTIME_DIR:-/tmp}/nixie-power-button.lock"
+shell_binary="${XDG_CONFIG_HOME:-$HOME/.config}/nixie-shell/target/release/nixie-shell"
+
+exec 9>"$lock_file"
+flock -n 9 || exit 0
+
+display_is_off() {
+    local monitors
+    monitors="$(hyprctl monitors -j 2>/dev/null)" || return 1
+    jq -e 'any(.[]; .disabled != true and .dpmsStatus == false)' \
+        >/dev/null 2>&1 <<<"$monitors"
+}
+
+lock_is_active() {
+    while IFS= read -r state; do
+        case "$state" in
+            Z* | "") ;;
+            *) return 0 ;;
+        esac
+    done < <(ps -C hyprlock -o stat= 2>/dev/null)
+    return 1
+}
+
+wake_display() {
+    hyprctl dispatch 'hl.dsp.dpms({action = "on"})' >/dev/null 2>&1 || true
+    brightnessctl -r >/dev/null 2>&1 || true
+}
+
+if display_is_off || lock_is_active; then
+    wake_display
+    exit 0
+fi
+
+if [[ -x "$shell_binary" ]] && "$shell_binary" --open-system; then
+    exit 0
+fi
+
+notify-send -u critical "Power menu unavailable" \
+    "Nixie shell is not running; no power action was performed." 2>/dev/null || true
+exit 1

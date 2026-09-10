@@ -1,0 +1,15 @@
+configuration {
+    modi: "drun,run,window";
+    show-icons: true;
+    icon-theme: "Papirus-Dark";
+    drun-display-format: "{name}";
+    display-drun: "Apps";
+    display-run: "Run";
+    display-window: "Windows";
+    font: "CaskaydiaMono NFP 13";
+    matching: "fuzzy";
+    sort: true;
+    terminal: "kitty";
+}
+
+@theme "nixie"

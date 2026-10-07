@@ -1,0 +1,8 @@
+[Unit]
+Description=Recover the built-in touchpad (%i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/nixie-touchpad-recover recover %i
+# Up to four escalating rounds, about ten minutes in total.
+TimeoutStartSec=15min

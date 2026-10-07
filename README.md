@@ -26,9 +26,13 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
   IANA timezone through systemd's authenticated timezone service.
 - Recovery for the UX3402ZA's intermittent I2C-HID touchpad hang. Runtime
   suspend is disabled only for the dedicated touchpad PCI/controller path, and
-  the touchpad is automatically rebound after system resume. If the I2C bus is
-  wedged, recovery escalates to a controller reset. `Super+Shift+T` performs the
-  same targeted recovery on demand without rebooting.
+  the touchpad is rebound after every system resume without delaying it. A
+  recovery only counts once the touchpad input device exists and stays
+  error-free; otherwise it escalates through longer power cycles and controller
+  resets, retrying for about ten minutes. A watchdog
+  starts the same recovery when the kernel logs touchpad I2C errors, at most
+  four times per 15 minutes. `Super+Shift+T` runs it on demand without a
+  password, and results arrive as notifications.
 - A context-aware hardware power button. It only wakes a sleeping display (or
   a suspended, locked session), but opens a Nixie action menu while the desktop
   is awake. Log out, reboot, and power off require a second confirmation that
@@ -56,8 +60,8 @@ Rofi 2, Blueberry, `powerprofilesctl`, and `jq`.
 Automatic timezone detection additionally uses GeoClue, systemd's
 `timedatectl`, and Hyprpolkitagent.
 Touchpad recovery and power-button handling additionally use Polkit and `flock`
-from util-linux. Their fixed, root-owned support files are installed with an
-authentication prompt; the user-facing commands themselves remain unprivileged.
+from util-linux. Their fixed, root-owned support files are installed with a
+single authentication prompt; the user-facing commands themselves remain unprivileged.
 The optional Google Calendar feed also uses `curl` for HTTPS retrieval.
 
 The divergence meter uses the locally installed `BO NX Medium` and

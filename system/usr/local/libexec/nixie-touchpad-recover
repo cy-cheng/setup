@@ -1,93 +1,337 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Keeps the UX3402ZA's ELAN I2C-HID touchpad (ASUE140D) working across system
+# sleep and intermittent I2C hangs.
+#
+#   pre-sleep         cancel a running recovery before the system sleeps
+#   recover [REASON]  reattach it and verify it responds, escalating as needed
+#   watch             follow the kernel log and request a recovery on errors
+#   status            report whether the touchpad is registered (any user)
+#
+# nixie-touchpad-sleep.service, nixie-touchpad-watchdog.service and
+# nixie-touchpad-recover@REASON.service run these modes.
+#
+# No errexit: individual steps are expected to fail, and a recovery must never
+# stop halfway with, for example, the controller left unbound.
+set -uo pipefail
+shopt -s nullglob
 
 device="i2c-ASUE140D:00"
 device_path="/sys/bus/i2c/devices/$device"
-driver_path="/sys/bus/i2c/drivers/i2c_hid_acpi"
-controller_path="/sys/devices/pci0000:00/0000:00:15.0/i2c_designware.0"
-pci_path="/sys/devices/pci0000:00/0000:00:15.0"
-controller_driver="/sys/bus/platform/drivers/i2c_designware"
+hid_driver="/sys/bus/i2c/drivers/i2c_hid_acpi"
 controller="i2c_designware.0"
-product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+pci_path="/sys/devices/pci0000:00/0000:00:15.0"
+controller_path="$pci_path/$controller"
+controller_driver="/sys/bus/platform/drivers/i2c_designware"
+acpi_path="/sys/bus/acpi/devices/ASUE140D:00"
+state_dir="/run/nixie-touchpad"
+lock_file="/run/lock/nixie-touchpad-recover.lock"
 
-if [[ $(id -u) -ne 0 ]]; then
+# Kernel messages that mean the touchpad or its dedicated bus is misbehaving.
+error_pattern='i2c_hid_acpi i2c-ASUE140D:00: |i2c_designware i2c_designware\.0: '
+settle_seconds=3
+
+log() {
+    logger -t nixie-touchpad-recover -- "$*"
+    if [[ -t 2 ]]; then
+        printf '%s\n' "$*" >&2
+    fi
+}
+
+# Best effort: tell whoever is at the active graphical session.
+notify() { # URGENCY SUMMARY BODY
+    local session type user uid
+    while read -r session _; do
+        [[ $(loginctl show-session "$session" --property=Active --value 2>/dev/null) == yes ]] || continue
+        type=$(loginctl show-session "$session" --property=Type --value 2>/dev/null)
+        [[ $type == wayland || $type == x11 ]] || continue
+        user=$(loginctl show-session "$session" --property=Name --value 2>/dev/null)
+        uid=$(id -u -- "$user" 2>/dev/null) || continue
+        timeout 5 runuser -u "$user" -- \
+            env "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+            notify-send -a Touchpad -u "$1" -- "$2" "$3" >/dev/null 2>&1
+    done < <(loginctl list-sessions --no-legend 2>/dev/null)
+}
+
+# sysfs reports a rejected bind or unbind, such as a failed probe, as a write error.
+sysfs_write() { # VALUE PATH
+    { printf '%s' "$1" >"$2"; } 2>/dev/null
+}
+
+driver_of() {
+    local link
+    link=$(readlink -- "$1/driver" 2>/dev/null) || return 1
+    printf '%s' "${link##*/}"
+}
+
+power_state() {
+    cat -- "$acpi_path/power_state" 2>/dev/null || printf unknown
+}
+
+# The driver link appears as soon as probing starts, so only the Touchpad input
+# device that hid-multitouch registers at the very end proves the probe worked.
+touchpad_registered() {
+    [[ $(driver_of "$device_path") == i2c_hid_acpi ]] || return 1
+    local hid input
+    for hid in "$device_path"/0018:04F3:31B9.*; do
+        [[ $(driver_of "$hid") == hid-multitouch ]] || continue
+        for input in "$hid"/input/input*; do
+            [[ $(cat -- "$input/name" 2>/dev/null) == *Touchpad ]] && return 0
+        done
+    done
+    return 1
+}
+
+wait_for_touchpad() { # TIMEOUT_SECONDS
+    local deadline=$(( SECONDS + $1 ))
+    until touchpad_registered; do
+        (( SECONDS < deadline )) || return 1
+        sleep 0.2
+    done
+}
+
+kernel_cursor() {
+    journalctl -k -n 1 -q -o cat --show-cursor 2>/dev/null | sed -n 's/^-- cursor: //p'
+}
+
+# A wedged bus can let the probe finish and then fail on the first transfers,
+# so the touchpad also has to stay quiet in the kernel log for a few seconds.
+verify() {
+    if ! wait_for_touchpad 10; then
+        log "touchpad did not register"
+        return 1
+    fi
+    local cursor errors
+    cursor=$(kernel_cursor)
+    sleep "$settle_seconds"
+    if [[ -n $cursor ]]; then
+        errors=$(journalctl -k -q -o cat --after-cursor="$cursor" \
+            --grep="$error_pattern" 2>/dev/null)
+        if [[ -n $errors ]]; then
+            log "touchpad registered but then failed: ${errors%%$'\n'*}"
+            return 1
+        fi
+    fi
+    if ! touchpad_registered; then
+        log "touchpad dropped out while settling"
+        return 1
+    fi
+}
+
+# Runtime suspend of this touchpad-only controller is associated with corrupt
+# HID reports, so keep it and its PCI function powered while the system runs.
+keep_controller_awake() {
+    sysfs_write on "$pci_path/power/control"
+    sysfs_write on "$controller_path/power/control"
+}
+
+# Unbinding also releases the touchpad's dedicated ACPI power resource, so a
+# detached touchpad is actually unpowered.
+detach_touchpad() {
+    if [[ -L $device_path/driver ]]; then
+        sysfs_write "$device" "$hid_driver/unbind"
+    fi
+}
+
+detach_controller() {
+    detach_touchpad
+    if [[ -L $controller_path/driver ]]; then
+        sysfs_write "$controller" "$controller_driver/unbind"
+    fi
+}
+
+# Binding the controller enumerates the touchpad and probes it asynchronously.
+attach_controller() {
+    if [[ ! -L $controller_path/driver ]]; then
+        sysfs_write "$controller" "$controller_driver/bind"
+    fi
+    keep_controller_awake
+}
+
+attach_touchpad() {
+    if [[ ! -L $controller_path/driver ]]; then
+        # A controller reset was interrupted, for example by a suspend.
+        attach_controller
+        return
+    fi
+    [[ -L $device_path/driver ]] || sysfs_write "$device" "$hid_driver/bind"
+}
+
+attempt() { # LABEL SECONDS_UNPOWERED touchpad|controller
+    local label=$1 off=$2 scope=$3
+    log "trying $label"
+    if [[ $scope == controller ]]; then
+        detach_controller
+    else
+        detach_touchpad
+    fi
+    if [[ $(power_state) != D3cold ]]; then
+        log "touchpad still powered after detaching ($(power_state))"
+    fi
+    sleep "$off"
+    if [[ $scope == controller ]]; then
+        attach_controller
+    elif ! attach_touchpad; then
+        log "$label: probe failed"
+        return 1
+    fi
+    verify
+}
+
+# A wedged bus ("lost arbitration") has so far only cleared five to six minutes
+# after it wedged, so later rounds keep retrying for about ten minutes.
+run_round() {
+    case $1 in
+        1) attempt "rebind" 1 touchpad ||
+            attempt "5 s power cycle" 5 touchpad ||
+            attempt "controller reset" 5 controller ;;
+        2) attempt "1 min power cycle" 60 touchpad ||
+            attempt "controller reset" 10 controller ;;
+        *) attempt "3 min power cycle" 180 touchpad ||
+            attempt "controller reset" 10 controller ;;
+    esac
+}
+
+recover() {
+    local reason=$1 requested=$EPOCHSECONDS round
+    mkdir -p "$state_dir"
+    exec 9>"$lock_file"
+    flock 9
+    trap 'touch "$state_dir/finished"' EXIT
+
+    # Another request (say, the watchdog during resume) succeeded meanwhile.
+    if [[ -e $state_dir/recovered ]] &&
+        (( $(stat -c %Y "$state_dir/recovered") >= requested )) &&
+        touchpad_registered; then
+        log "$reason: touchpad was already recovered"
+        return 0
+    fi
+
+    modprobe -q -a i2c_hid_acpi hid_multitouch
+    if [[ ! -d $hid_driver || ! -d $controller_driver || ! -e $controller_path ]]; then
+        log "touchpad driver or controller is missing"
+        return 1
+    fi
+    keep_controller_awake
+
+    for round in 1 2 3 4; do
+        if run_round "$round"; then
+            touch "$state_dir/recovered"
+            log "recovered touchpad ($reason, round $round)"
+            if [[ $reason != resume ]] || (( round > 1 )); then
+                notify low "Touchpad recovered" "The touchpad is responding again."
+            fi
+            return 0
+        fi
+        if (( round == 1 )); then
+            notify normal "Touchpad not responding" \
+                "Retrying with longer power cycles. This can take up to ten minutes."
+        fi
+    done
+
+    log "could not recover touchpad ($reason)"
+    notify critical "Touchpad recovery failed" \
+        "Shut down fully (not reboot), wait a few seconds, and power back on."
+    return 1
+}
+
+# The touchpad stays attached across sleep: powering it off beforehand made
+# every resume wedge the bus, while the kernel's own resume plus a rebind
+# afterwards almost always works.
+pre_sleep() {
+    # A recovery still running now would be frozen halfway through a reset.
+    # Cancel it; the resume recovery starts from scratch.
+    timeout 10 systemctl stop 'nixie-touchpad-recover@*.service' >/dev/null 2>&1
+}
+
+recovery_running() {
+    ! flock -n "$lock_file" true 2>/dev/null
+}
+
+request_recovery() {
+    systemctl --no-block start nixie-touchpad-recover@watchdog.service
+}
+
+watch_kernel_log() {
+    local line now last_request=0 paused=0 t
+    local -a recent=() kept=()
+    mkdir -p "$state_dir"
+
+    # A touchpad that failed to probe at boot never logs again, so check once.
+    if ! recovery_running && ! wait_for_touchpad 30; then
+        log "touchpad missing when the watchdog started"
+        request_recovery
+        last_request=$EPOCHSECONDS
+    fi
+
+    while IFS= read -r line; do
+        now=$EPOCHSECONDS
+        # Errors logged during or just after a recovery, or around sleep, belong
+        # to that recovery (or to the resume one), not to a new request.
+        (( now - last_request < 20 )) && continue
+        [[ -e $state_dir/finished ]] &&
+            (( now - $(stat -c %Y "$state_dir/finished") < 20 )) && continue
+        recovery_running && continue
+        [[ $(systemctl show -P ActiveState sleep.target) == inactive ]] || continue
+
+        # At most four automatic recoveries per 15 minutes, so failing hardware
+        # cannot hold the bus in a reset loop.
+        kept=()
+        for t in "${recent[@]}"; do
+            (( now - t < 900 )) && kept+=("$t")
+        done
+        recent=("${kept[@]}")
+        if (( ${#recent[@]} >= 4 )); then
+            if (( ! paused )); then
+                paused=1
+                log "touchpad keeps failing; pausing automatic recovery"
+                notify critical "Touchpad keeps failing" \
+                    "Automatic recovery is paused for a while. Super+Shift+T still retries."
+            fi
+            continue
+        fi
+        paused=0
+        recent+=("$now")
+        last_request=$now
+        log "kernel reported: $line"
+        request_recovery
+    done < <(journalctl -k -f -n 0 -q -o cat --grep="$error_pattern")
+
+    log "kernel log stream ended"
+    return 1
+}
+
+status() {
+    if touchpad_registered; then
+        printf 'touchpad registered (power %s)\n' "$(power_state)"
+    else
+        printf 'touchpad not registered (power %s)\n' "$(power_state)"
+        return 1
+    fi
+}
+
+mode=${1:-recover}
+if [[ $mode == status ]]; then
+    status
+    exit
+fi
+
+if (( EUID != 0 )); then
     printf 'nixie-touchpad-recover must run as root\n' >&2
     exit 77
 fi
 
+product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null)
 if [[ $product_name != *UX3402ZA* ]]; then
     printf 'unsupported system for this touchpad recovery: %s\n' "$product_name" >&2
     exit 69
 fi
 
-exec 9>/run/lock/nixie-touchpad-recover.lock
-flock -n 9 || exit 0
-
-for path in \
-    "$device_path" \
-    "$driver_path/bind" \
-    "$driver_path/unbind" \
-    "$controller_path/power/control" \
-    "$pci_path/power/control" \
-    "$controller_driver/bind" \
-    "$controller_driver/unbind"; do
-    if [[ ! -e $path ]]; then
-        logger -t nixie-touchpad-recover "required path is missing: $path"
-        exit 1
-    fi
-done
-
-device_is_bound() {
-    [[ -L $device_path/driver ]]
-}
-
-wait_for_device() {
-    for _ in {1..20}; do
-        device_is_bound && return 0
-        sleep 0.1
-    done
-    return 1
-}
-
-rebind_device() {
-    if device_is_bound && ! printf '%s' "$device" >"$driver_path/unbind"; then
-        return 1
-    fi
-    sleep 0.5
-    printf '%s' "$device" >"$driver_path/bind"
-}
-
-reset_controller() {
-    if [[ -L $controller_path/driver ]] && \
-        ! printf '%s' "$controller" >"$controller_driver/unbind"; then
-        return 1
-    fi
-    sleep 1
-    printf '%s' "$controller" >"$controller_driver/bind"
-}
-
-# The PCI function and its DesignWare child serve only the built-in touchpad.
-# Keeping both active avoids the runtime transition associated with corrupt HID
-# reports on this UX3402ZA.
-printf 'on' >"$pci_path/power/control"
-printf 'on' >"$controller_path/power/control"
-
-method="HID rebind"
-if ! rebind_device || ! wait_for_device; then
-    # An -EREMOTEIO or lost-arbitration failure means the I2C bus itself is
-    # wedged. Re-probing only i2c_hid_acpi cannot recover that state, so reset
-    # the dedicated controller and let it enumerate the ACPI child again.
-    logger -t nixie-touchpad-recover \
-        "$device rebind failed; resetting dedicated DesignWare controller"
-    method="controller reset"
-    if ! reset_controller || ! wait_for_device; then
-        logger -t nixie-touchpad-recover \
-            "failed to recover $device after DesignWare controller reset"
-        exit 1
-    fi
-fi
-
-printf 'on' >"$pci_path/power/control"
-printf 'on' >"$controller_path/power/control"
-logger -t nixie-touchpad-recover \
-    "recovered $device with $method and disabled controller runtime suspend"
+case $mode in
+    pre-sleep) pre_sleep ;;
+    recover) recover "${2:-manual}" ;;
+    watch) watch_kernel_log ;;
+    *)
+        printf 'usage: %s [pre-sleep | recover [REASON] | watch | status]\n' "${0##*/}" >&2
+        exit 64
+        ;;
+esac

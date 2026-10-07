@@ -33,6 +33,11 @@ Hyprland, Rofi, Dunst, and Fcitx configuration.
   starts the same recovery when the kernel logs touchpad I2C errors, at most
   four times per 15 minutes. `Super+Shift+T` runs it on demand without a
   password, and results arrive as notifications.
+- Mouse keys on `Fn+F6`, the touchpad-toggle key. They swap the built-in
+  keyboard's input-remapper preset: `H` `J` `K` `L` or the arrows move the
+  pointer with a short speed ramp, `F` or `Space` click (hold to drag), `D`
+  right-clicks, `S` middle-clicks, and `Y` `U` `I` `O` scroll. A notification
+  stays up while they are on, and locking the session turns them off.
 - A context-aware hardware power button. It only wakes a sleeping display (or
   a suspended, locked session), but opens a Nixie action menu while the desktop
   is awake. Log out, reboot, and power off require a second confirmation that
@@ -62,6 +67,7 @@ Automatic timezone detection additionally uses GeoClue, systemd's
 Touchpad recovery and power-button handling additionally use Polkit and `flock`
 from util-linux. Their fixed, root-owned support files are installed with a
 single authentication prompt; the user-facing commands themselves remain unprivileged.
+Mouse keys use the input-remapper service and `gdbus` from GLib.
 The optional Google Calendar feed also uses `curl` for HTTPS retrieval.
 
 The divergence meter uses the locally installed `BO NX Medium` and

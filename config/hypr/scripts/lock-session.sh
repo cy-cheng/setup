@@ -48,6 +48,9 @@ if lock_is_active; then
     exit 0
 fi
 
+# Mouse keys would swallow password letters, so go back to typing first.
+"$HOME/.config/nixie-shell/bin/toggle-mouse-keys" off
+
 kill_stale_hyprlock
 
 # Detach Hyprlock so hypridle's pre-sleep hook can return and release its

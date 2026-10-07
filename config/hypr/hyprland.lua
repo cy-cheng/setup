@@ -121,6 +121,8 @@ hl.gesture({
 })
 
 hl.device({ name = "epic-mouse-v1", sensitivity = -0.5 })
+-- Mouse keys (Fn+F6) already ramp their own speed; don't accelerate them again.
+hl.device({ name = "input-remapper-mouse", accel_profile = "flat", sensitivity = 0 })
 
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + C", hl.dsp.window.close())
@@ -167,6 +169,8 @@ hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"),
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"), { locked = true, repeating = true })
 hl.bind("XF86PowerOff", hl.dsp.exec_cmd("/home/brine/.config/nixie-shell/bin/power-button"), { locked = true })
 hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("/home/brine/.config/nixie-shell/bin/reset-touchpad"))
+-- Fn+F6 is the touchpad-toggle key. Locked so mouse keys can be left at the lock screen too.
+hl.bind("XF86TouchpadToggle", hl.dsp.exec_cmd("/home/brine/.config/nixie-shell/bin/toggle-mouse-keys"), { locked = true })
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })

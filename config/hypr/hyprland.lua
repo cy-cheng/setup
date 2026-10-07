@@ -175,6 +175,12 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true 
 -- Keep the original catch-all rules from the pre-Lua config.
 hl.window_rule({ name = "catch-all", match = { class = ".*" } })
 hl.layer_rule({ name = "layer", no_anim = true })
+-- slurp ("selection") border otherwise fades out and lands in hyprshot captures.
+hl.layer_rule({
+    name = "no-anim-screenshot",
+    match = { namespace = "^(selection|hyprpicker)$" },
+    no_anim = true,
+})
 hl.layer_rule({
     name = "blur-nixie-popups",
     match = { namespace = "^nixie-(calendar|system|llm|notifications|candidates|network-menu)$" },

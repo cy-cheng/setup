@@ -205,3 +205,11 @@ hl.layer_rule({
     ignore_alpha = 0.12,
     no_anim = true,
 })
+-- dunst popups: frosted-glass cards behind the translucent dunstrc background.
+hl.layer_rule({
+    name = "blur-notifications",
+    match = { namespace = "^notifications$" },
+    blur = true,
+    ignore_alpha = 0.12,
+    no_anim = true,
+})

@@ -14,7 +14,7 @@ Layout=
 
 [Groups/0/Items/1]
 # Name
-Name=chewing
+Name=rime
 # Layout
 Layout=
 
@@ -30,11 +30,6 @@ Name=keyboard-de
 # Layout
 Layout=
 
-[Groups/0/Items/4]
-# Name
-Name=rime
-# Layout
-Layout=
-
 [GroupOrder]
 0=Default
+

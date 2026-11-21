@@ -1,66 +1,108 @@
+# Modern card-style notifications in the nixie amber palette.
+# Frosted glass (blur comes from the Hyprland layer rule for the
+# "notifications" namespace), hairline border, large radius, app icon,
+# app-name header above a bold title and muted body.
 [global]
     monitor = 0
     follow = mouse
-    width = 380
-    height = (80, 220)
-    origin = top-right
-    offset = (12, 44)
+    width = 430
+    height = (84, 280)
+    origin = bottom-right
+    # 128 = 10% of the 1280px logical screen height (2560x1600 @ 1.25)
+    offset = (22, 128)
     scale = 0
     notification_limit = 5
-
-    gap_size = 8
+    # No "(N more)" card: during DND it would expose the paused queue
+    # whenever a Discord notification breaks through.
+    indicate_hidden = false
+    gap_size = 12
     separator_height = 0
-    padding = 12
-    horizontal_padding = 14
-    text_icon_padding = 12
-    frame_width = 2
-    corner_radius = 8
-    frame_color = "#44301e"
-
-    font = CaskaydiaMono NFP 11
-    line_height = 2
+    padding = 17
+    horizontal_padding = 19
+    text_icon_padding = 16
+    frame_width = 1
+    corner_radius = 18
+    frame_color = "#ffe2b824"
+    font = Adwaita Sans,Noto Sans TC 12
+    line_height = 3
     markup = full
-    format = "<b>%s</b>\n<span foreground='#aab6c4'>%b</span>"
+    format = "<span size='small' weight='600' foreground='#d6923f'>%a</span>\n<span weight='600'>%s</span>\n<span foreground='#b8ab9b'>%b</span>"
     alignment = left
     vertical_alignment = center
-    ellipsize = middle
+    ellipsize = end
     ignore_newline = no
     show_age_threshold = 60
     stack_duplicates = true
     hide_duplicate_count = false
-    show_indicators = yes
-
+    show_indicators = no
+    # Explicit path instead of recursive theme lookup: the theme lookup only
+    # accepts icons at exactly the requested size, so most never loaded.
+    # Colourful app icons (hicolor) first, then breeze-dark largest-first.
+    icon_path = "/usr/share/icons/hicolor/scalable/apps:/usr/share/icons/hicolor/256x256/apps:/usr/share/icons/hicolor/128x128/apps:/usr/share/icons/hicolor/64x64/apps:/usr/share/icons/hicolor/48x48/apps:/usr/share/icons/hicolor/32x32/apps:/usr/share/icons/breeze-dark/apps/64:/usr/share/icons/breeze-dark/apps/48:/usr/share/icons/breeze-dark/status/64:/usr/share/icons/breeze-dark/devices/64:/usr/share/icons/breeze-dark/places/64:/usr/share/icons/breeze-dark/mimetypes/64:/usr/share/icons/breeze-dark/actions/64:/usr/share/icons/breeze-dark/actions/48:/usr/share/icons/breeze-dark/status/32:/usr/share/icons/breeze-dark/devices/32:/usr/share/icons/breeze-dark/actions/32:/usr/share/icons/breeze-dark/apps/32:/usr/share/icons/breeze-dark/categories/32:/usr/share/icons/breeze-dark/preferences/32:/usr/share/icons/breeze-dark/status/24:/usr/share/icons/breeze-dark/devices/24:/usr/share/icons/breeze-dark/actions/24:/usr/share/icons/breeze-dark/places/24:/usr/share/pixmaps"
     icon_position = left
-    min_icon_size = 32
+    min_icon_size = 48
     max_icon_size = 48
-    icon_corner_radius = 6
-
+    icon_corner_radius = 12
     progress_bar = true
-    progress_bar_height = 8
+    progress_bar_height = 7
     progress_bar_frame_width = 0
-    progress_bar_min_width = 160
-    progress_bar_max_width = 320
-    progress_bar_corner_radius = 4
-    highlight = "#ffac32"
-
+    progress_bar_min_width = 180
+    progress_bar_max_width = 340
+    progress_bar_corner_radius = 3
+    highlight = "#c97824, #ffac32"
     mouse_left_click = do_action, close_current
     mouse_middle_click = close_current
     mouse_right_click = close_all
 
+[experimental]
+    pause_on_mouse_over = true
+
 [urgency_low]
-    background = "#070605f4"
+    background = "#15120fd9"
     foreground = "#e8ded1"
-    frame_color = "#44301e"
+    frame_color = "#ffe2b81a"
     timeout = 4
 
 [urgency_normal]
-    background = "#12100df7"
+    background = "#15120fe0"
     foreground = "#e8ded1"
-    frame_color = "#c97824"
+    frame_color = "#ffe2b824"
     timeout = 6
 
 [urgency_critical]
-    background = "#1c1010f7"
+    background = "#2a1311eb"
     foreground = "#ffffff"
-    frame_color = "#ff5c57"
+    frame_color = "#ff5c57b3"
+    highlight = "#ff5c57"
     timeout = 0
+
+[critical-header]
+    msg_urgency = critical
+    format = "<span size='small' weight='600' foreground='#ff8a85'>%a</span>\n<span weight='600'>%s</span>\n<span foreground='#e6c9c6'>%b</span>"
+
+# Scripts that call plain notify-send have no real app name; drop the
+# "notify-send" header and give them a generic icon so the card stays balanced.
+# These come after critical-header because later rules win.
+[plain-notify-send]
+    appname = "notify-send"
+    format = "<span weight='600'>%s</span>\n<span foreground='#b8ab9b'>%b</span>"
+    default_icon = dialog-information
+
+[plain-notify-send-critical]
+    appname = "notify-send"
+    msg_urgency = critical
+    format = "<span weight='600'>%s</span>\n<span foreground='#e6c9c6'>%b</span>"
+    default_icon = dialog-warning
+
+# Discord still pops up while do-not-disturb (dunstctl set-paused) is on.
+# Pausing sets pause level 100; a notification shows if its override level
+# reaches that. Matched by app name and by desktop entry to catch both forms.
+[discord-bypass-dnd]
+    appname = "[Dd]iscord"
+    format = "<span size='small' weight='600' foreground='#d6923f'>Discord</span>\n<span weight='600'>%s</span>\n<span foreground='#b8ab9b'>%b</span>"
+    override_pause_level = 100
+
+[discord-bypass-dnd-entry]
+    desktop_entry = "discord"
+    format = "<span size='small' weight='600' foreground='#d6923f'>Discord</span>\n<span weight='600'>%s</span>\n<span foreground='#b8ab9b'>%b</span>"
+    override_pause_level = 100

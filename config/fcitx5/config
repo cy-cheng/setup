@@ -20,7 +20,6 @@ ModifierOnlyKeyTimeout=250
 0=Hangul_Romaja
 
 [Hotkey/AltTriggerKeys]
-0=Shift+Shift_L
 
 [Hotkey/EnumerateGroupForwardKeys]
 0=Alt+Shift+Shift_R

@@ -23,6 +23,7 @@ FILES=(
     .config/kitty/kitty.conf
     .config/fish/config.fish
     .config/fish/fish_plugins
+    .config/fish/conf.d/theme.fish
     .config/fish/functions/rm-to-trash.fish
     .config/qt6ct/qt6ct.conf
     .config/gtk-3.0/settings.ini

@@ -1,17 +1,9 @@
 #!/usr/bin/env fish
 # The tide prompt exactly as on the old arch machine (rainbow style: OS icon, blue
-# folder, git, frame line, language versions and time on the right), plus Nixie
-# colours for fish syntax highlighting.
+# folder, git, frame line, language versions and time on the right).
 # Run once: fish ~/setup/hosts/expertbook/install/fish-prompt.fish
 # (Needs fisher + ilancosman/tide@v6 installed.)
 
-set -l fg e9e6e1
-set -l muted 8f8a84
-set -l faint 5c5853
-set -l amber ffac32
-set -l amberDim c97824
-set -l green 8fd18b
-set -l red ff5c57
 
 # ── Prompt (exported from the old machine) ──
 for v in (set -Un | string match 'tide_*'); set -eU $v; end
@@ -176,25 +168,9 @@ set -U tide_zig_color 000000
 set -U tide_zig_icon 
 
 # ── Syntax highlighting ──
-set -U fish_color_command $fg --bold
-set -U fish_color_param $fg
-set -U fish_color_option $muted
-set -U fish_color_keyword $amber
-set -U fish_color_quote $green
-set -U fish_color_redirection $amberDim
-set -U fish_color_end $amberDim
-set -U fish_color_operator $amberDim
-set -U fish_color_escape $amberDim
-set -U fish_color_error $red
-set -U fish_color_comment $faint --italics
-set -U fish_color_autosuggestion $faint
-set -U fish_color_valid_path --underline
-set -U fish_color_search_match --background=2c2a27
-set -U fish_color_selection --background=2c2a27
-set -U fish_pager_color_prefix $amber --bold
-set -U fish_pager_color_completion $fg
-set -U fish_pager_color_description $muted
-set -U fish_pager_color_progress $faint
+# Lives in ~/.config/fish/conf.d/theme.fish (Dracula, as on the old machine; synced by
+# sync-configs.sh). Drop any universal colour overrides so that file wins.
+for v in (set -Un | string match -r '^fish_(pager_)?color'); set -eU $v; end
 
 tide reload 2>/dev/null
 echo "Prompt applied. Open a new terminal to see it."

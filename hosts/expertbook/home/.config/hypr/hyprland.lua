@@ -72,6 +72,8 @@ hl.on("hyprland.start", function ()
     hl.exec_cmd("hypridle")
     -- Password prompts for privileged actions (fingerprint enroll, etc.)
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
+    -- Nixie shell: bar, attention rail, notifications (~/.config/quickshell)
+    hl.exec_cmd("qs -d -n")
     -- Chinese/Japanese input (Alt + right Shift switches, as on the arch machine)
     hl.exec_cmd("fcitx5 -d --replace")
 end)
@@ -357,6 +359,10 @@ hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_S
 hl.bind("XF86MonBrightnessUp",  hl.dsp.exec_cmd("~/.local/bin/brightness up"),                    { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("~/.local/bin/brightness down"),                  { locked = true, repeating = true })
 
+-- Notifications: Super+N centre, Super+Shift+N focus mode (only "needs you" gets through)
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))
+hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifs focus"))
+
 -- Lock now (hyprlock: password or fingerprint)
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("loginctl lock-session"))
 
@@ -400,6 +406,14 @@ hl.window_rule({
 })
 
 -- Layer rules also return a handle.
+-- Nixie shell (Quickshell): frosted glass behind the bar, rail, popups and centre.
+hl.layer_rule({
+    name  = "nixie-shell-blur",
+    match = { namespace = "^nixie-(bar|rail|popups|centre)$" },
+    blur = true,
+    ignore_alpha = 0.3,
+})
+
 -- local overlayLayerRule = hl.layer_rule({
 --     name  = "no-anim-overlay",
 --     match = { namespace = "^my-overlay$" },

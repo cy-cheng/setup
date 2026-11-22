@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Focus the window that sent a notification.
+
+nixie-focus [--pid PID] [--desktop ENTRY] [--app NAME]
+
+Order: 1) walk the sender's process tree up to a Hyprland window,
+2) match the desktop entry / app name against window classes,
+3) launch the app if it has no window. Exit 0 if something was focused/launched.
+"""
+import argparse, json, os, subprocess, sys
+
+
+def clients():
+    out = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True).stdout
+    return [c for c in json.loads(out or "[]") if c.get("mapped", True)]
+
+
+def ppid(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            # comm may contain spaces/parens: ppid is the 2nd field after the last ')'
+            return int(f.read().rsplit(")", 1)[1].split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def focus(c):
+    subprocess.run(["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{c["address"]}" }})'],
+                   capture_output=True)
+    print(f'focused {c["class"]} on workspace {c["workspace"]["name"]}')
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--pid", default="")
+    ap.add_argument("--desktop", default="")
+    ap.add_argument("--app", default="")
+    a = ap.parse_args()
+
+    cs = clients()
+    by_pid = {c["pid"]: c for c in cs}
+
+    # 1) Sender process → its window (walk up: helper processes, shells, terminals).
+    if a.pid.isdigit():
+        p, seen = int(a.pid), set()
+        while p > 1 and p not in seen:
+            if p in by_pid:
+                return focus(by_pid[p])
+            seen.add(p)
+            p = ppid(p)
+
+    # 2) Name match against window class / initial class (most recently used first).
+    names = [n.lower().removesuffix(".desktop") for n in (a.desktop, a.app) if n]
+    cs.sort(key=lambda c: c.get("focusHistoryID", 999))
+    for n in names:
+        for c in cs:
+            cls = (c.get("class") or "").lower(), (c.get("initialClass") or "").lower()
+            if any(n == x or n in x or (x and x in n) for x in cls):
+                return focus(c)
+
+    # 3) No window: launch the app if it has a desktop entry.
+    if a.desktop:
+        r = subprocess.run(["gtk-launch", a.desktop], capture_output=True)
+        if r.returncode == 0:
+            print(f"launched {a.desktop}")
+            return 0
+    print("no matching window", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

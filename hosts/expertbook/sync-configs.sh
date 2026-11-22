@@ -36,6 +36,17 @@ FILES=(
     .local/bin/brightness
     .local/bin/charge-limit
     .local/bin/display-mode
+    .local/bin/nixie-focus
+    .local/share/dbus-1/services/org.knopwob.dunst.service
+    .config/quickshell/shell.qml
+    .config/quickshell/services/Theme.qml
+    .config/quickshell/services/Sys.qml
+    .config/quickshell/services/Notifs.qml
+    .config/quickshell/modules/Bar.qml
+    .config/quickshell/modules/Rail.qml
+    .config/quickshell/modules/Popups.qml
+    .config/quickshell/modules/Centre.qml
+    .config/quickshell/modules/NotifCard.qml
     .local/bin/trash-prune-prompt
 )
 

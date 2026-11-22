@@ -366,6 +366,11 @@ hl.bind("code:66", hl.dsp.exec_cmd("fcitx5-remote -t"))
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))
 hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifs focus"))
 
+-- Screenshots: saved to ~/Pictures/Screenshots and copied to the clipboard
+hl.bind("Print",               hl.dsp.exec_cmd("hyprshot -m region -o ~/Pictures/Screenshots"))
+hl.bind("SHIFT + Print",       hl.dsp.exec_cmd("hyprshot -m window -o ~/Pictures/Screenshots"))
+hl.bind(mainMod .. " + Print", hl.dsp.exec_cmd("hyprshot -m output -m active -o ~/Pictures/Screenshots"))
+
 -- Lock now (hyprlock: password or fingerprint)
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("loginctl lock-session"))
 

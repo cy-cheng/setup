@@ -6,6 +6,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import Quickshell.Networking
 import Quickshell.Bluetooth
+import Quickshell.Services.SystemTray
 import qs.services
 
 // Contents of the frame's top edge: three islands.
@@ -106,8 +107,50 @@ Item {
     }
     Tip { parent: clockIsland; text: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") }  // outside the row: no extra gap
 
+    // ── Right: system tray (only when apps put icons there) ─────────────
+    Island {
+        anchors { right: statusIsland.left; rightMargin: Theme.gap; verticalCenter: parent.verticalCenter }
+        visible: SystemTray.items.values.length > 0
+        spacing: 10
+        Repeater {
+            model: SystemTray.items
+            delegate: Item {
+                id: trayItem
+                required property var modelData
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 18; implicitHeight: 18
+                Image {
+                    anchors.fill: parent
+                    sourceSize: Qt.size(36, 36)
+                    source: trayItem.modelData.icon
+                }
+                QsMenuAnchor {
+                    id: menuAnchor
+                    menu: trayItem.modelData.menu
+                    anchor.item: trayItem
+                    anchor.edges: Edges.Bottom
+                    anchor.gravity: Edges.Bottom
+                    anchor.margins.top: 12
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                    onClicked: m => {
+                        const it = trayItem.modelData;
+                        if (m.button === Qt.MiddleButton) it.secondaryActivate();
+                        else if (m.button === Qt.RightButton || it.onlyMenu) { if (it.hasMenu) menuAnchor.open(); }
+                        else it.activate();
+                    }
+                    onWheel: w => trayItem.modelData.scroll(w.angleDelta.y, false)
+                }
+                Tip { text: trayItem.modelData.tooltipTitle || trayItem.modelData.title || trayItem.modelData.id }
+            }
+        }
+    }
+
     // ── Right: status ───────────────────────────────────────────────────
     Island {
+        id: statusIsland
         anchors { right: parent.right; rightMargin: parent.width - bar.innerRight; verticalCenter: parent.verticalCenter }
         spacing: 12
 

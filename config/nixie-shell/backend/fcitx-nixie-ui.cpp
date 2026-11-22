@@ -115,13 +115,11 @@ private:
         if (!ic) return;
         const auto *entry = instance_->inputMethodEntry(ic);
         if (!entry) return;
-        // "ㄓ  Rime", "EN  English (US)": short label first, then the full name.
-        std::string shortLabel = entry->label().empty() ? entry->name() : entry->label();
-        if (entry->uniqueName().rfind("keyboard-", 0) == 0)
-            for (auto &c : shortLabel) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        std::string name = entry->name();
-        if (name.rfind("Keyboard - ", 0) == 0) name = name.substr(11);   // "Keyboard - English (US)" → "English (US)"
-        const std::string label = shortLabel == name ? shortLabel : shortLabel + "  " + name;
+        // One symbol, the same as the bar's input-method indicator.
+        const std::string &id = entry->uniqueName();
+        std::string label = id == "rime" ? "注" : id == "mozc" ? "あ"
+                          : id == "keyboard-us" ? "EN" : id == "keyboard-de" ? "DE"
+                          : (entry->label().empty() ? entry->name() : entry->label());
         shownLabel_ = label;
         auto &panel = ic->inputPanel();
         if (panel.candidateList() || !panel.preedit().empty()) return;   // already typing: don't interrupt

@@ -337,16 +337,26 @@ class NativeCandidatePopup::Impl {
     // Just a line of text (input-method label after a switch, or preedit with no candidates):
     // a small pill instead of the full candidate window.
     bool drawPill(const std::string& text, int scale) {
+        // Lay the text out once; centre it on its ink box (CJK + Latin line boxes carry
+        // extra space below, so centring the logical box looks low).
         cairo_surface_t* measureSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
         cairo_t* measureContext = cairo_create(measureSurface);
-        const int textWidth = measure(measureContext, text, 15.0, true).width;
+        auto* probe = pango_cairo_create_layout(measureContext);
+        auto* description = font(15.0, true);
+        pango_layout_set_font_description(probe, description);
+        pango_layout_set_text(probe, text.data(), static_cast<int>(text.size()));
+        PangoRectangle ink{}, logical{};
+        pango_layout_get_pixel_extents(probe, &ink, &logical);
+        g_object_unref(probe);
         cairo_destroy(measureContext);
         cairo_surface_destroy(measureSurface);
-        const int logicalHeight = 34;
-        const int logicalWidth = std::max(logicalHeight, textWidth + 28);
+
+        const int padX = 14;
+        const int logicalHeight = 36;
+        const int logicalWidth = std::max(logicalHeight, logical.width + 2 * padX);
         const int pixelWidth = logicalWidth * scale, pixelHeight = logicalHeight * scale;
         auto* buffer = newBuffer(pixelWidth, pixelHeight);
-        if (!buffer) return false;
+        if (!buffer) { pango_font_description_free(description); return false; }
         auto* image = cairo_image_surface_create_for_data(static_cast<unsigned char*>(buffer->data),
                                                           CAIRO_FORMAT_ARGB32, pixelWidth, pixelHeight, pixelWidth * 4);
         auto* cr = cairo_create(image);
@@ -355,13 +365,28 @@ class NativeCandidatePopup::Impl {
         color(cr, 0, 0, 0, 0);
         cairo_paint(cr);
         cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-        roundedRect(cr, 0.5, 0.5, logicalWidth - 1.0, logicalHeight - 1.0, (logicalHeight - 1.0) / 2);
+
+        // Same shape and colours as the candidate window; the 1 px outline sits on the
+        // pixel grid (half-pixel inset at every scale).
+        const double inset = 0.5 / scale;
+        roundedRect(cr, inset, inset, logicalWidth - 2 * inset, logicalHeight - 2 * inset, 10.0);
         color(cr, 0.071, 0.063, 0.051, 0.98);
         cairo_fill_preserve(cr);
         color(cr, 1.0, 0.62, 0.13, 0.85);
-        cairo_set_line_width(cr, 1.0);
+        cairo_set_line_width(cr, 1.0 / scale);
         cairo_stroke(cr);
-        drawText(cr, text, 14, 7, logicalWidth - 28, 15.0, true, false);
+
+        auto* layout = pango_cairo_create_layout(cr);
+        pango_layout_set_font_description(layout, description);
+        pango_layout_set_text(layout, text.data(), static_cast<int>(text.size()));
+        color(cr, 0.91, 0.87, 0.82);
+        const double tx = (logicalWidth - logical.width) / 2.0 - logical.x;
+        const double ty = (logicalHeight - ink.height) / 2.0 - ink.y;
+        cairo_move_to(cr, std::round(tx * scale) / scale, std::round(ty * scale) / scale);
+        pango_cairo_show_layout(cr, layout);
+        g_object_unref(layout);
+        pango_font_description_free(description);
+
         cairo_surface_flush(image);
         cairo_destroy(cr);
         cairo_surface_destroy(image);

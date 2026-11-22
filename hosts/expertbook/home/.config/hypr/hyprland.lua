@@ -75,7 +75,7 @@ hl.on("hyprland.start", function ()
     -- Nixie shell: bar, attention rail, notifications (~/.config/quickshell)
     hl.exec_cmd("qs -d -n")
     -- Chinese/Japanese input (Alt + right Shift switches, as on the arch machine)
-    hl.exec_cmd("fcitx5 -d --replace")
+    hl.exec_cmd("~/.local/bin/start-fcitx")
 end)
 
 

@@ -36,6 +36,7 @@ FILES=(
     .local/bin/brightness
     .local/bin/charge-limit
     .local/bin/display-mode
+    .local/bin/start-fcitx
     .local/bin/nixie-focus
     .local/share/dbus-1/services/org.knopwob.dunst.service
     .config/quickshell/shell.qml
@@ -52,6 +53,7 @@ FILES=(
     .config/quickshell/modules/Label.qml
     .config/quickshell/modules/Ring.qml
     .config/quickshell/modules/WifiPanel.qml
+    .config/quickshell/modules/BluetoothPanel.qml
     .config/quickshell/modules/Popups.qml
     .config/quickshell/modules/Centre.qml
     .config/quickshell/modules/NotifCard.qml

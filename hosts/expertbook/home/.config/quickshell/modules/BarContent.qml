@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import Quickshell.Networking
+import Quickshell.Bluetooth
 import qs.services
 
 // Contents of the frame's top edge: three islands.
@@ -120,6 +121,15 @@ Item {
             text: online ? "wifi" : "wifi_off"
             color: online ? Theme.fg : Theme.red
             MouseArea { anchors.fill: parent; onClicked: Panels.toggle("wifi") }
+        }
+
+        Icon { // Bluetooth: off / on / connected (amber)
+            readonly property var adapter: Bluetooth.defaultAdapter
+            readonly property bool on: adapter?.enabled ?? false
+            readonly property bool linked: on && (adapter?.devices.values.some(d => d.connected) ?? false)
+            text: !on ? "bluetooth_disabled" : linked ? "bluetooth_connected" : "bluetooth"
+            color: !on ? Theme.faint : linked ? Theme.amber : Theme.fg
+            MouseArea { anchors.fill: parent; onClicked: Panels.toggle("bluetooth") }
         }
 
         Ring { // volume: scroll to change, click to mute

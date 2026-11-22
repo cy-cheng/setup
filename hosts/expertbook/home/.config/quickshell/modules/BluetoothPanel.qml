@@ -19,7 +19,7 @@ PanelWindow {
     visible: Panels.open === "bluetooth" && onFocusedScreen
 
     anchors { top: true; right: true }
-    margins { top: Theme.gap; right: Theme.gap }
+    margins { top: Theme.panelTop; right: Theme.panelSide }
     implicitWidth: 360
     implicitHeight: content.implicitHeight + 28
     exclusiveZone: 0

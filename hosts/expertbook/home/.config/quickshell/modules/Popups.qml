@@ -16,7 +16,7 @@ PanelWindow {
 
     visible: Notifs.popups.length > 0 && onFocusedScreen && !Notifs.centreOpen
     anchors { top: true; right: true }
-    margins { top: Theme.gap; right: Theme.gap }
+    margins { top: Theme.panelTop; right: Theme.panelSide }
     implicitWidth: 380
     implicitHeight: stack.implicitHeight
     exclusiveZone: 0

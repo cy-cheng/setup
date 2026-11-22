@@ -39,6 +39,10 @@ Singleton {
     readonly property int icon: 18
 
     // ── Geometry (logical px, 4px grid) ──
+    // Panels/popups float 8 px inside the focused window's amber border, never on it.
+    // Window border: top at 4–6 px below the bar (gaps_out top 4 + border 2), sides/bottom 8–10 px.
+    readonly property int panelTop: 14
+    readonly property int panelSide: 18
     readonly property int barH: 36          // top frame edge: islands (32) hug the top, 4px below
     readonly property int railW: 6          // right frame edge (dock is a slide-in overlay)
     readonly property int edge: 6           // left/bottom frame edges

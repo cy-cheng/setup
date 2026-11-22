@@ -44,9 +44,9 @@ Scope {
         const right = s.x + s.width;
         const inY = p.y >= s.y && p.y < s.y + s.height;
         const onEdge = inY && p.x >= right - 2 && p.x < right;
-        const top = s.y + Theme.barH + Theme.gap;
+        const top = s.y + Theme.barH + Theme.panelTop;
         const inDock = root.revealed && inY
-            && p.x >= right - Theme.gap - panel.implicitWidth - 4
+            && p.x >= right - Theme.railW - Theme.panelSide - panel.implicitWidth - 4
             && p.y >= top - 4 && p.y <= top + panel.implicitHeight + 4;
 
         if (!root.revealed) {
@@ -126,7 +126,7 @@ Scope {
         screen: root.modelData
         visible: root.revealed || card.x < panel.implicitWidth
         anchors { top: true; right: true }
-        margins { top: Theme.barH + Theme.gap; right: Theme.gap }
+        margins { top: Theme.barH + Theme.panelTop; right: Theme.railW + Theme.panelSide }   // screen coords (ignores reserved space)
         implicitWidth: content.implicitWidth + 8
         implicitHeight: content.implicitHeight + 8
         exclusionMode: ExclusionMode.Ignore

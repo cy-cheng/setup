@@ -18,7 +18,7 @@ PanelWindow {
     readonly property bool open: Notifs.centreOpen && onFocusedScreen
     visible: open || card.x < width        // stays mapped while it slides out
     anchors { top: true; bottom: true; right: true }
-    margins { top: Theme.gap; bottom: Theme.gap; right: Theme.gap }
+    margins { top: Theme.panelTop; bottom: Theme.panelSide; right: Theme.panelSide }
     implicitWidth: 400
     exclusiveZone: 0
     color: "transparent"

@@ -1,5 +1,11 @@
 #!/bin/bash
 # Power key: wake the display if it's off, otherwise open/close the session menu.
+# A press that just woke the laptop from sleep is ignored (hypridle's after_sleep_cmd
+# stamps $XDG_RUNTIME_DIR/nixie-resumed), so waking never pops the menu up.
+stamp="${XDG_RUNTIME_DIR:-/tmp}/nixie-resumed"
+if [ -e "$stamp" ] && [ $(( $(date +%s) - $(stat -c %Y "$stamp") )) -lt 5 ]; then
+    exit 0
+fi
 if hyprctl monitors -j | grep -q '"dpmsStatus": false'; then
     hyprctl dispatch 'hl.dsp.dpms({ action = "on" })' >/dev/null
 else

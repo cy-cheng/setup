@@ -21,7 +21,8 @@ PanelWindow {
 
     // ── Geometry (same rules as the original) ──
     readonly property real cellFactor: 0.52
-    readonly property real size: Math.max(72, Math.min(300, width * 0.90 / (8 * cellFactor), height * 0.62))
+    // Smaller than the original (300 px cap): about half the screen width.
+    readonly property real size: Math.max(72, Math.min(170, width * 0.55 / (8 * cellFactor), height * 0.35))
     readonly property real cellW: size * cellFactor
     readonly property real cellH: size * 1.35
 
@@ -70,7 +71,9 @@ PanelWindow {
     Timer { id: tick; repeat: false; onTriggered: bg.update() }
     Component.onCompleted: update()
 
-    readonly property real glowBlur: rolling ? [0.45, 0.8, 0.3, 1.0][glow] : 0.6
+    // Two glow layers: a tight bright halo and a wide soft one. Rolling flickers their strength.
+    readonly property real glowTight: rolling ? [0.35, 0.55, 0.25, 0.7][glow] : 0.45
+    readonly property real glowWide: rolling ? [0.6, 0.95, 0.45, 1.0][glow] : 0.85
 
     Item {
         id: meter
@@ -121,19 +124,7 @@ PanelWindow {
                     font { family: "BO NX"; pixelSize: bg.size }
                     layer.enabled: true
                 }
-                MultiEffect {
-                    source: digit
-                    anchors.fill: digit
-                    visible: bg.digits[tube.index] !== ""
-                    shadowEnabled: true
-                    shadowColor: bg.glowColor
-                    shadowBlur: bg.glowBlur
-                    shadowOpacity: 0.9
-                    shadowHorizontalOffset: 0
-                    shadowVerticalOffset: 0
-                    blurMax: 48
-                    autoPaddingEnabled: true
-                }
+                TubeGlow { src: digit; shown: bg.digits[tube.index] !== ""; tight: bg.glowTight; wide: bg.glowWide; halo: bg.glowColor }
 
                 // Lit decimal point
                 Text {
@@ -147,19 +138,7 @@ PanelWindow {
                     font { family: "TT Chocolates Trl"; pixelSize: bg.size * 0.55 }
                     layer.enabled: true
                 }
-                MultiEffect {
-                    source: dot
-                    anchors.fill: dot
-                    visible: bg.dots[tube.index]
-                    shadowEnabled: true
-                    shadowColor: bg.glowColor
-                    shadowBlur: bg.glowBlur
-                    shadowOpacity: 0.9
-                    shadowHorizontalOffset: 0
-                    shadowVerticalOffset: 0
-                    blurMax: 48
-                    autoPaddingEnabled: true
-                }
+                TubeGlow { src: dot; shown: bg.dots[tube.index]; tight: bg.glowTight; wide: bg.glowWide; halo: bg.glowColor }
             }
         }
     }

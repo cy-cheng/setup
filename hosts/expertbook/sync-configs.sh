@@ -45,6 +45,7 @@ FILES=(
     .config/quickshell/services/Notifs.qml
     .config/quickshell/services/Panels.qml
     .config/quickshell/modules/Background.qml
+    .config/quickshell/modules/TubeGlow.qml
     .config/quickshell/modules/Frame.qml
     .config/quickshell/modules/Reserve.qml
     .config/quickshell/modules/BarContent.qml

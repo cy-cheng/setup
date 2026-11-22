@@ -1,4 +1,4 @@
-# Overrides dunst's D-Bus activation: notifications are handled by the Nixie
+# D-Bus activation for notifications: they are handled by the Nixie
 # Quickshell shell, so start that instead if nothing owns the name yet.
 [D-BUS Service]
 Name=org.freedesktop.Notifications

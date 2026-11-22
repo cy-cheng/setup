@@ -16,15 +16,14 @@ PKGS=(
     bluez bluez-utils
     # Power, firmware, swap
     power-profiles-daemon fwupd zram-generator
-    # Desktop basics: notifications, media keys, keyring, user folders
-    # (dunst is the stop-gap until the Quickshell shell runs its own notification server)
-    dunst playerctl gnome-keyring seahorse xdg-user-dirs
-    # The new desktop shell (bar, attention rail, notification centre)
+    # Desktop basics: media keys, keyring, user folders
+    playerctl gnome-keyring seahorse xdg-user-dirs
+    # The new desktop shell (bar, dock, notifications, launcher)
     quickshell
     # Chinese/Japanese input (configs come from the setup repo)
     fcitx5 fcitx5-gtk fcitx5-qt fcitx5-configtool fcitx5-chewing fcitx5-rime fcitx5-mozc
     # Screenshots, colour picker, night light, clipboard history
-    hyprshot hyprpicker hyprsunset cliphist
+    hyprshot hyprpicker cliphist
     # Fonts: emoji, icon glyphs
     noto-fonts-emoji ttf-nerd-fonts-symbols
     # Look: dark GTK3 theme matching libadwaita, icon theme, Qt theming

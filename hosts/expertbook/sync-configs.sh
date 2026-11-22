@@ -14,7 +14,6 @@ FILES=(
     .config/hypr/hyprlock.conf
     .config/hypr/application-style.conf
     .config/hypr/scripts/lock-session.sh
-    .config/dunst/dunstrc
     .config/fcitx5/config
     .config/fcitx5/profile
     .config/fcitx5/conf/classicui.conf
@@ -39,7 +38,7 @@ FILES=(
     .local/bin/power-button
     .local/bin/start-fcitx
     .local/bin/nixie-focus
-    .local/share/dbus-1/services/org.knopwob.dunst.service
+    .local/share/dbus-1/services/org.freedesktop.Notifications.service
     .config/quickshell/shell.qml
     .config/quickshell/services/Theme.qml
     .config/quickshell/services/Sys.qml
@@ -50,7 +49,7 @@ FILES=(
     .config/quickshell/modules/Frame.qml
     .config/quickshell/modules/Reserve.qml
     .config/quickshell/modules/BarContent.qml
-    .config/quickshell/modules/RailContent.qml
+    .config/quickshell/modules/DockContent.qml
     .config/quickshell/modules/DockTile.qml
     .config/quickshell/modules/DockWindow.qml
     .local/state/nixie-dock.json

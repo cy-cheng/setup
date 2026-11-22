@@ -16,13 +16,13 @@ Status: nothing installed yet. [x] = already on this laptop.
 
 ## 2. Nixie desktop (what install.sh needs)
 - [x] hyprland hypridle hyprlock hyprpolkitagent xdg-desktop-portal-hyprland rofi kitty
-- hyprsunset hyprpicker hyprshot dunst uwsm
+- hyprpicker hyprshot uwsm (no hyprsunset: the warm shader is always on) (dunst dropped: the Quickshell shell owns notifications)
 - build deps: rustup (cargo), gtk3 gtk-layer-shell libpulse libnm jq curl geoclue pkgconf
 - fcitx5 fcitx5-chewing fcitx5-rime fcitx5-mozc fcitx5-gtk fcitx5-qt fcitx5-configtool
 - qt6-wayland qt5-wayland qt6ct, gnome-keyring + seahorse, xdg-utils
 - AUR: yay, input-remapper-git (mouse keys), blueberry
-- Fonts: noto-fonts-emoji, ttf-cascadia-mono-nerd (kitty/dunst "CaskaydiaMono NF"),
-  adwaita-fonts (dunst), otf-font-awesome [x noto-fonts noto-fonts-cjk]
+- Fonts: noto-fonts-emoji, ttf-cascadia-mono-nerd (kitty "CaskaydiaMono NF"),
+  adwaita-fonts, otf-font-awesome [x noto-fonts noto-fonts-cjk]
   + copy private BO NX / TT Chocolates from arch:/usr/local/share/fonts
 - DROP: waybar wofi eww ags/astal hyprpaper (superseded by Nixie), all KDE Plasma + GNOME bits,
   gdm AND sddm (pick one lighter login, see 6), neofetch (dead -> fastfetch)

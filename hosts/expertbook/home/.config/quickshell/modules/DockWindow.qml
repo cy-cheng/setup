@@ -101,7 +101,7 @@ Scope {
             radius: Theme.radius + 4
             color: Theme.glass
             border.color: Theme.line
-            RailContent {
+            DockContent {
                 id: content
                 anchors.centerIn: parent
                 width: implicitWidth; height: implicitHeight

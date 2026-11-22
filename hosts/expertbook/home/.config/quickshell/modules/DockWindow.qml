@@ -76,7 +76,7 @@ Scope {
     PanelWindow {
         id: panel
         screen: root.modelData
-        visible: root.revealed || card.x < card.width
+        visible: root.revealed || card.x < panel.implicitWidth
         anchors { top: true; right: true }
         margins { top: Theme.barH + Theme.gap; right: Theme.gap }
         implicitWidth: content.implicitWidth + 8
@@ -96,7 +96,7 @@ Scope {
         Rectangle {
             id: card
             width: parent.width; height: parent.height
-            x: root.revealed ? 0 : width + Theme.gap * 2
+            x: root.revealed ? 0 : panel.implicitWidth + Theme.gap * 2
             Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             radius: Theme.radius + 4
             color: Theme.glass

@@ -13,6 +13,13 @@ Singleton {
     property string inputMethod: ""            // fcitx5 im name: keyboard-us, rime, mozc, keyboard-de
     property real cpu: 0                        // 0..1
     property real brightness: 0.6               // 0..1 (from ~/.local/bin/brightness state)
+    property bool keepAwake: false              // holds an idle inhibitor (hypridle honours it)
+
+    // Keep awake: a systemd idle inhibitor lives as long as this process runs.
+    Process {
+        running: root.keepAwake
+        command: ["systemd-inhibit", "--what=idle", "--who=Nixie", "--why=Keep awake", "--mode=block", "sleep", "infinity"]
+    }
 
     readonly property var profiles: ["power-saver", "balanced", "performance"]
     readonly property var imeLabels: ({ "keyboard-us": "EN", "rime": "注", "mozc": "あ", "keyboard-de": "DE" })
@@ -115,6 +122,10 @@ Singleton {
     }
     Component.onCompleted: { getProfile.running = true; procStat.reload(); }
 
+    IpcHandler { // qs ipc call awake toggle
+        target: "awake"
+        function toggle(): void { root.keepAwake = !root.keepAwake; }
+    }
     IpcHandler { // qs ipc call power cycle | set power-saver
         target: "power"
         function cycle(): void { root.cycleProfile(); }

@@ -61,6 +61,7 @@ FILES=(
     .config/quickshell/modules/Tip.qml
     .config/quickshell/modules/WifiPanel.qml
     .config/quickshell/modules/Launcher.qml
+    .config/quickshell/modules/Clipboard.qml
     .config/quickshell/modules/PowerMenu.qml
     .config/quickshell/modules/Osd.qml
     .config/quickshell/modules/BluetoothPanel.qml

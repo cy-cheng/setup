@@ -14,6 +14,7 @@ ShellRoot {
     Variants { model: Quickshell.screens; delegate: WifiPanel {} }
     Variants { model: Quickshell.screens; delegate: BluetoothPanel {} }
     Variants { model: Quickshell.screens; delegate: Launcher {} }
+    Variants { model: Quickshell.screens; delegate: Clipboard {} }
     Variants { model: Quickshell.screens; delegate: DockWindow {} }
     Variants { model: Quickshell.screens; delegate: PowerMenu {} }
     Variants { model: Quickshell.screens; delegate: Osd {} }

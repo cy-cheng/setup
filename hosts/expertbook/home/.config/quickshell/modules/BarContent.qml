@@ -230,6 +230,13 @@ Item {
             onClicked: Sys.cycleProfile()
         }
 
+        Icon { // keep awake: blocks idle lock / screen off while on
+            text: "coffee"
+            color: Sys.keepAwake ? Theme.amber : Theme.faint
+            MouseArea { anchors.fill: parent; onClicked: Sys.keepAwake = !Sys.keepAwake }
+            Tip { text: Sys.keepAwake ? "Keeping awake · no auto-lock or screen off" : "Keep awake: off" }
+        }
+
         Icon { // notifications: left = centre, right = focus mode
             text: Notifs.focusMode ? "do_not_disturb_on" : Notifs.unseen > 0 ? "notifications_unread" : "notifications"
             color: Notifs.focusMode ? Theme.muted : Notifs.unseen > 0 ? Theme.amber : Theme.fg

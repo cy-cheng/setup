@@ -39,16 +39,6 @@ PanelWindow {
                 radius: Theme.frameRadius
             }
         }
-        ShapePath { // hairline along the inner edge
-            fillColor: "transparent"
-            strokeColor: Theme.line
-            strokeWidth: 1
-            PathRectangle {
-                x: frame.innerX - 0.5; y: frame.innerY - 0.5
-                width: frame.innerW + 1; height: frame.innerH + 1
-                radius: Theme.frameRadius + 0.5
-            }
-        }
     }
 
     BarContent {

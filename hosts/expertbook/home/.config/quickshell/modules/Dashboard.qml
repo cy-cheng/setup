@@ -271,8 +271,13 @@ PanelWindow {
                         readonly property real frac: dash.battery?.percentage ?? 0
                         value: frac
                         text: Math.round(frac * 100)
-                        name: "Battery"; icon: !UPower.onBattery ? "bolt" : "battery_full"
-                        tint: UPower.onBattery && frac <= 0.15 ? Theme.red : Theme.fg
+                        readonly property bool isCharging: dash.battery?.state === UPowerDeviceState.Charging
+                        charging: isCharging
+                        name: "Battery"; icon: isCharging ? "bolt" : !UPower.onBattery ? "power" : "battery_full"
+                        tint: isCharging ? Theme.yellow
+                            : UPower.onBattery && frac <= 0.15 ? Theme.red
+                            : Sys.powerProfile === "power-saver" ? Theme.green
+                            : Sys.powerProfile === "performance" ? Theme.amber : Theme.fg
                         tip: "Click to change power mode"
                         onClicked: Sys.cycleProfile()
                     }

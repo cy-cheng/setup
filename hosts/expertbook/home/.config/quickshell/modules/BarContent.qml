@@ -225,12 +225,18 @@ Item {
             readonly property real raw: UPower.displayDevice?.percentage ?? 0
             readonly property real frac: raw > 1 ? raw / 100 : raw
             readonly property string mode: ({ "power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance" })[Sys.powerProfile] ?? "Balanced"
+            // Charging = really charging (not just plugged in and held at the 80 % limit).
+            readonly property bool isCharging: UPower.displayDevice?.state === UPowerDeviceState.Charging
             value: frac
-            icon: !UPower.onBattery ? "bolt"
+            charging: isCharging
+            icon: isCharging ? "bolt" : !UPower.onBattery ? "power"
                 : ({ "power-saver": "eco", "balanced": "balance", "performance": "speed" })[Sys.powerProfile] ?? "balance"
-            tint: UPower.onBattery && frac <= 0.15 ? Theme.red
+            tint: isCharging ? Theme.yellow
+                : UPower.onBattery && frac <= 0.15 ? Theme.red
+                : Sys.powerProfile === "power-saver" ? Theme.green
                 : Sys.powerProfile === "performance" ? Theme.amber : Theme.fg
-            tip: "Battery " + Math.round(frac * 100) + "%" + (!UPower.onBattery ? " · charging" : "")
+            tip: "Battery " + Math.round(frac * 100) + "%"
+                 + (isCharging ? " · charging" : !UPower.onBattery ? " · plugged in, not charging" : "")
                  + " · " + mode + " · click to change"
             onClicked: Sys.cycleProfile()
         }

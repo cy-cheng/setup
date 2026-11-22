@@ -11,6 +11,7 @@ ColumnLayout {
     property string icon
     property color tint: Theme.fg
     property string tip
+    property bool charging: false
     signal clicked
     signal scrolled(bool up)
 
@@ -29,6 +30,7 @@ ColumnLayout {
         icon: ""
         tip: g.tip
         tipInPanel: true
+        charging: g.charging
         onClicked: g.clicked()
         onScrolled: up => g.scrolled(up)
         Label {

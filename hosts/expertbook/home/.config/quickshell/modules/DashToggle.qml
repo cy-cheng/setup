@@ -17,9 +17,13 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: 56
     radius: Theme.radius
-    color: on ? Qt.rgba(1, 0.675, 0.196, 0.16) : mouse.containsMouse ? Theme.raised : Qt.rgba(1, 1, 1, 0.04)
-    border.color: on ? Qt.rgba(1, 0.675, 0.196, 0.45) : Theme.line
+    // Hover = the same tint, a little stronger (animating between two different hues
+    // passes through a bright mid-grey, which reads as a flash).
+    readonly property bool hovered: mouse.containsMouse || chev.containsMouse
+    color: on ? Qt.rgba(1, 0.675, 0.196, hovered ? 0.24 : 0.16) : Qt.rgba(1, 1, 1, hovered ? 0.10 : 0.04)
+    border.color: on ? Qt.rgba(1, 0.675, 0.196, hovered ? 0.6 : 0.45) : hovered ? Qt.rgba(1, 1, 1, 0.32) : Theme.line
     Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on border.color { ColorAnimation { duration: 120 } }
 
     MouseArea {
         id: mouse

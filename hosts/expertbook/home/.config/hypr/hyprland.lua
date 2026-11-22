@@ -378,8 +378,9 @@ hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))
 hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifs focus"))
 
 -- Screenshots: saved to ~/Pictures/Screenshots and copied to the clipboard
-hl.bind("Print",               hl.dsp.exec_cmd("hyprshot -m region -o ~/Pictures/Screenshots"))
-hl.bind("SHIFT + Print",       hl.dsp.exec_cmd("hyprshot -m window -o ~/Pictures/Screenshots"))
+-- Print: drag to select a region on a frozen frame (-z), saved + copied. Esc cancels.
+hl.bind("Print",               hl.dsp.exec_cmd("hyprshot -m region -z -o ~/Pictures/Screenshots"))
+hl.bind("SHIFT + Print",       hl.dsp.exec_cmd("hyprshot -m window -z -o ~/Pictures/Screenshots"))
 hl.bind(mainMod .. " + Print", hl.dsp.exec_cmd("hyprshot -m output -m active -o ~/Pictures/Screenshots"))
 
 -- Lock now (hyprlock: password or fingerprint)
@@ -431,6 +432,14 @@ hl.layer_rule({
     match = { namespace = "^nixie-(frame|popups|centre)$" },
     blur = true,
     ignore_alpha = 0.3,
+})
+
+-- slurp's selection layer and hyprpicker's freeze layer must appear/vanish instantly,
+-- otherwise the fading selection border lands in the screenshot.
+hl.layer_rule({
+    name  = "no-anim-screenshot",
+    match = { namespace = "^(selection|hyprpicker)$" },
+    no_anim = true,
 })
 
 -- local overlayLayerRule = hl.layer_rule({

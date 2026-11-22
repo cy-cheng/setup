@@ -5,22 +5,16 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import qs.services
 
-// Right edge of the frame: a dock of pinned + running apps.
+// Right edge of the frame: a dock of the apps that have windows open (no pinned list),
+// ordered by the workspace they're on.
 //   dots on the left = open windows (amber = focused app)
 //   badge = unread notifications from that app; amber pulsing outline = needs you
-//   click: focus (again: next window) or launch · middle: new window · right: clear its notifications
+//   click: focus (again: next window) · middle: new window · right: clear its notifications
 // Notifications from things that aren't apps (scripts, agents) get tiles at the bottom.
 Item {
     id: dock
     implicitWidth: 56
     implicitHeight: col.implicitHeight + Theme.gap * 2
-
-    // ── Pinned apps (~/.local/state/nixie-dock.json → {"pinned": [...desktop ids]}) ──
-    property var pinned: ["kitty", "google-chrome", "discord", "slack", "thunar"]
-    FileView {
-        path: Quickshell.env("HOME") + "/.local/state/nixie-dock.json"
-        onLoaded: { try { const p = JSON.parse(text()).pinned; if (Array.isArray(p)) dock.pinned = p; } catch (e) {} }
-    }
 
     // Window → desktop entry id
     function entryIdFor(t) {
@@ -33,6 +27,9 @@ Item {
     readonly property var windowsById: {
         const m = {};
         for (const t of Hyprland.toplevels.values) {
+            // Quickshell keeps closed windows in the list; only ones with a live
+            // Wayland handle are really open.
+            if (!t.wayland) continue;
             const id = entryIdFor(t);
             if (!id) continue;
             (m[id] = m[id] || []).push(t);
@@ -48,18 +45,19 @@ Item {
         return groups.find(g => keys.includes(g.key) || keys.includes(g.label.toLowerCase())) ?? null;
     }
 
+    // Workspace order: numbered workspaces first (1, 2, …), scratchpads after.
+    function wsRank(t) {
+        const id = t.workspace?.id ?? 999;
+        return id > 0 ? id : 1000 - id;
+    }
     readonly property var apps: {
-        const out = [], seen = {};
-        const push = (id, pinnedFlag) => {
-            if (seen[id]) return;
+        const out = [];
+        for (const id of Object.keys(windowsById)) {
             const e = DesktopEntries.byId(id) ?? DesktopEntries.heuristicLookup(id);
-            if (!e) return;
-            seen[id] = seen[e.id] = true;
-            out.push({ id: e.id, entry: e, pinned: pinnedFlag });
-        };
-        for (const id of pinned) push(id, true);
-        for (const id of Object.keys(windowsById)) push(id, false);
-        return out;
+            if (!e || out.some(a => a.id === e.id)) continue;
+            out.push({ id: e.id, entry: e, rank: Math.min(...windowsById[id].map(wsRank)) });
+        }
+        return out.sort((a, b) => a.rank - b.rank);
     }
     readonly property var strayGroups: {
         const matched = apps.map(a => groupFor(a.entry)).filter(g => g).map(g => g.key);

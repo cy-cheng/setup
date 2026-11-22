@@ -47,8 +47,9 @@ Item {
                 readonly property var apps: {
                     const out = [];
                     for (const t of Hyprland.toplevels.values)
-                        // Live Wayland app id first; Hyprland's IPC class only fills in after a refresh.
-                        if (t.workspace === modelData) out.push(t.wayland?.appId || t.lastIpcObject?.class || "");
+                        // Only windows with a live Wayland handle (Quickshell keeps closed ones in
+                        // the list); app id from the handle, IPC class as fallback.
+                        if (t.wayland && t.workspace === modelData) out.push(t.wayland.appId || t.lastIpcObject?.class || "");
                     return out.filter(c => c !== "");
                 }
                 visible: mine

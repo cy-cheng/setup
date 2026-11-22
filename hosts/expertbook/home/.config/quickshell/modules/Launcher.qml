@@ -47,6 +47,28 @@ PanelWindow {
         usageFile.setText(JSON.stringify(u));
     }
 
+    // Chrome profiles (from Chrome's own "Local State"): each gets its own entry that opens
+    // straight into that profile, skipping the profile picker.
+    property var chromeProfiles: []
+    FileView {
+        path: Quickshell.env("HOME") + "/.config/google-chrome/Local State"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                const cache = JSON.parse(text()).profile?.info_cache ?? {};
+                launcher.chromeProfiles = Object.keys(cache).map(dir => ({ dir: dir, name: cache[dir].name || dir }))
+                                                .sort((a, b) => a.name.localeCompare(b.name));
+            } catch (e) { launcher.chromeProfiles = []; }
+        }
+    }
+    // Looks enough like a DesktopEntry for the rows below.
+    function profileEntry(p) {
+        return { id: "chrome:" + p.dir, name: "Chrome · " + p.name, genericName: "Chrome profile",
+                 comment: "", icon: "google-chrome", keywords: ["chrome", "google", "browser", p.name],
+                 noDisplay: false, profileDir: p.dir };
+    }
+
     property string query: ""
     property int selected: 0
     readonly property int maxRows: 8
@@ -56,6 +78,7 @@ PanelWindow {
     // ── Results ──
     function score(e, q) {
         const name = (e.name || "").toLowerCase();
+        if (e.profileDir !== undefined && ("chrome " + name.slice(9)).includes(q)) return 3.2;
         if (name.startsWith(q)) return 3;
         if (name.split(/[\s\-_.]/).some(w => w.startsWith(q))) return 2.5;
         if (name.includes(q)) return 2;
@@ -79,7 +102,8 @@ PanelWindow {
         }
         const c = calc(q);
         if (c !== null) out.push({ kind: "calc", title: String(c), subtitle: "= " + query.trim() + "  ·  Enter copies", icon: "calculate" });
-        const apps = DesktopEntries.applications.values.filter(e => !e.noDisplay);
+        const apps = DesktopEntries.applications.values.filter(e => !e.noDisplay)
+                         .concat(chromeProfiles.map(profileEntry));
         const used = e => usage[e.id] || 0;
         if (q === "") { // most used first, then alphabetical
             for (const e of apps.slice().sort((a, b) => (used(b) - used(a)) || a.name.localeCompare(b.name)).slice(0, maxRows))
@@ -95,7 +119,11 @@ PanelWindow {
 
     function run(r) {
         if (!r) return;
-        if (r.kind === "app") { count(r.entry.id); r.entry.execute(); }
+        if (r.kind === "app" && r.entry.profileDir !== undefined) {
+            count(r.entry.id);
+            Quickshell.execDetached(["google-chrome-stable", "--profile-directory=" + r.entry.profileDir]);
+        }
+        else if (r.kind === "app") { count(r.entry.id); r.entry.execute(); }
         else if (r.kind === "calc") Quickshell.execDetached(["wl-copy", r.title]);
         else if (r.kind === "cmd") Quickshell.execDetached(["sh", "-c", r.title]);
         Panels.close();

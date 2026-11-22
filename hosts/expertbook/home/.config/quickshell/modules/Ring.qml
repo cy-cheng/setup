@@ -49,13 +49,6 @@ Item {
         onClicked: ring.clicked()
         onWheel: w => ring.scrolled(w.angleDelta.y > 0)
     }
-    // Hover: exact value
-    Rectangle {
-        visible: mouse.containsMouse && ring.tip !== ""
-        anchors { top: parent.bottom; topMargin: 8; horizontalCenter: parent.horizontalCenter }
-        width: tipText.implicitWidth + 12; height: 20; radius: 10
-        color: Theme.raised; border.color: Theme.line
-        z: 10
-        Label { id: tipText; anchors.centerIn: parent; text: ring.tip; font.pixelSize: Theme.textSm }
-    }
+    Tip { text: ring.tip }
+
 }

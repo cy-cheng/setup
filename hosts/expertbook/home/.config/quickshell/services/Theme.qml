@@ -7,10 +7,13 @@ import Quickshell
 Singleton {
     // ── Colour ──
     readonly property color base: "#0b0a09"        // frame
-    readonly property color frame: "#eb0b0a09"     // frame, slightly translucent (blurred by Hyprland)
-    readonly property color island: "#1a1918"      // islands, cards
-    readonly property color raised: "#252321"      // pills inside islands, hover
-    readonly property color line: "#2e2c2a"        // hairlines
+    // Translucent surfaces: Hyprland blurs what is behind them (frosted glass).
+    readonly property color frame: "#b80b0a09"     // frame ~72%
+    readonly property color island: "#a61a1918"    // bar islands ~65%, sit on the frame
+    readonly property color glass: "#d11a1918"     // centre, panels ~82%
+    readonly property color notif: "#8c1a1918"     // notification cards ~55%, blurred behind
+    readonly property color raised: "#cc2c2a27"    // pills inside islands, hover
+    readonly property color line: "#3dffffff"      // hairlines: light edge reads better on glass
     readonly property color track: "#34312e"       // gauge tracks
     readonly property color fg: "#e9e6e1"
     readonly property color muted: "#8f8a84"

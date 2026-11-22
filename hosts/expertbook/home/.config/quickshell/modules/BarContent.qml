@@ -94,14 +94,17 @@ Item {
         }
     }
 
-    // ── Centre: date · time (centred on the inner area, not the screen) ──
+    // ── Centre: date · time ──
     SystemClock { id: clock; precision: SystemClock.Minutes }
     Island {
-        x: (bar.innerLeft + bar.innerRight - width) / 2
+        id: clockIsland
+        x: (bar.width - width) / 2          // centred on the screen, so the bar reads symmetric
         anchors.verticalCenter: parent.verticalCenter
-        Label { text: Qt.formatDateTime(clock.date, "ddd d MMM"); color: Theme.muted }
-        Label { text: Qt.formatDateTime(clock.date, "HH:mm"); font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
+        Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "ddd d MMM"); color: Theme.muted }
+        Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "HH:mm")
+                font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
     }
+    Tip { parent: clockIsland; text: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") }  // outside the row: no extra gap
 
     // ── Right: status ───────────────────────────────────────────────────
     Island {
@@ -114,6 +117,7 @@ Item {
             color: Sys.inputMethod && Sys.inputMethod !== "keyboard-us" ? Theme.amber : Theme.muted
             font.weight: Font.DemiBold
             MouseArea { anchors.fill: parent; onClicked: Sys.toggleIme() }
+            Tip { text: ({ "keyboard-us": "English", "rime": "注音 (Rime)", "mozc": "日本語 (Mozc)", "keyboard-de": "Deutsch" })[Sys.inputMethod] + " · Caps Lock switches" }
         }
 
         Icon {
@@ -121,6 +125,14 @@ Item {
             text: online ? "wifi" : "wifi_off"
             color: online ? Theme.fg : Theme.red
             MouseArea { anchors.fill: parent; onClicked: Panels.toggle("wifi") }
+            Tip {
+                text: {
+                    for (const d of Networking.devices.values)
+                        if (d.type === DeviceType.Wifi)
+                            for (const n of d.networks.values) if (n.connected) return "Wi-Fi · " + n.name;
+                    return Networking.wifiEnabled ? "Wi-Fi · not connected" : "Wi-Fi off";
+                }
+            }
         }
 
         Icon { // Bluetooth: off / on / connected (amber)
@@ -130,6 +142,11 @@ Item {
             text: !on ? "bluetooth_disabled" : linked ? "bluetooth_connected" : "bluetooth"
             color: !on ? Theme.faint : linked ? Theme.amber : Theme.fg
             MouseArea { anchors.fill: parent; onClicked: Panels.toggle("bluetooth") }
+            Tip {
+                text: !parent.on ? "Bluetooth off"
+                    : parent.linked ? "Bluetooth · " + parent.adapter.devices.values.filter(d => d.connected).map(d => d.name).join(", ")
+                    : "Bluetooth on · nothing connected"
+            }
         }
 
         Ring { // volume: scroll to change, click to mute
@@ -156,19 +173,18 @@ Item {
             tip: "CPU " + Math.round(Sys.cpu * 100) + "%"
         }
 
-        Ring { // battery
+        Ring { // battery level + power mode in one: click cycles power-saver → balanced → performance
             readonly property real raw: UPower.displayDevice?.percentage ?? 0
             readonly property real frac: raw > 1 ? raw / 100 : raw
+            readonly property string mode: ({ "power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance" })[Sys.powerProfile] ?? "Balanced"
             value: frac
-            icon: !UPower.onBattery ? "bolt" : "battery_full"
-            tint: UPower.onBattery && frac <= 0.15 ? Theme.red : Theme.fg
-            tip: "Battery " + Math.round(frac * 100) + "%" + (!UPower.onBattery ? " · plugged in" : "")
-        }
-
-        Icon { // power profile: click cycles
-            text: ({ "power-saver": "eco", "balanced": "balance", "performance": "speed" })[Sys.powerProfile] ?? "balance"
-            color: Sys.powerProfile === "balanced" ? Theme.muted : Theme.amber
-            MouseArea { anchors.fill: parent; onClicked: Sys.cycleProfile() }
+            icon: !UPower.onBattery ? "bolt"
+                : ({ "power-saver": "eco", "balanced": "balance", "performance": "speed" })[Sys.powerProfile] ?? "balance"
+            tint: UPower.onBattery && frac <= 0.15 ? Theme.red
+                : Sys.powerProfile === "performance" ? Theme.amber : Theme.fg
+            tip: "Battery " + Math.round(frac * 100) + "%" + (!UPower.onBattery ? " · charging" : "")
+                 + " · " + mode + " · click to change"
+            onClicked: Sys.cycleProfile()
         }
 
         Icon { // notifications: left = centre, right = focus mode
@@ -180,6 +196,7 @@ Item {
                 onClicked: m => m.button === Qt.RightButton ? Notifs.focusMode = !Notifs.focusMode
                                                              : Notifs.centreOpen = !Notifs.centreOpen
             }
+            Tip { text: (Notifs.focusMode ? "Focus mode · " : "") + (Notifs.unseen ? Notifs.unseen + " unread" : "No new notifications") + " · right-click: focus" }
         }
     }
 }

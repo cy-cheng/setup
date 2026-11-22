@@ -52,6 +52,7 @@ FILES=(
     .config/quickshell/modules/Icon.qml
     .config/quickshell/modules/Label.qml
     .config/quickshell/modules/Ring.qml
+    .config/quickshell/modules/Tip.qml
     .config/quickshell/modules/WifiPanel.qml
     .config/quickshell/modules/BluetoothPanel.qml
     .config/quickshell/modules/Popups.qml

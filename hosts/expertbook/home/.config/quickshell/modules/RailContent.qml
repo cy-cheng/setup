@@ -93,7 +93,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: Theme.radius
-                        color: Theme.island
+                        color: Theme.glass
                         border.color: Theme.line
                         ColumnLayout {
                             id: preview

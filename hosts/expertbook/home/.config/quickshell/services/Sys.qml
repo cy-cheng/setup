@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.UPower
 
 // System states without a Quickshell service: power profile, input method,
 // CPU usage, panel brightness.
@@ -17,21 +18,58 @@ Singleton {
     readonly property var imeLabels: ({ "keyboard-us": "EN", "rime": "注", "mozc": "あ", "keyboard-de": "DE" })
 
     function cycleProfile() {
-        const i = profiles.indexOf(powerProfile);
-        setProfile.command = ["powerprofilesctl", "set", profiles[(i + 1) % profiles.length]];
-        setProfile.running = true;
+        setProfileTo(profiles[(profiles.indexOf(powerProfile) + 1) % profiles.length]);
     }
     function stepBrightness(up) {
         Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/brightness", up ? "up" : "down"]);
     }
     function toggleIme() { Quickshell.execDetached(["fcitx5-remote", "-t"]); }
+    function setProfileTo(p) {
+        Quickshell.execDetached(["powerprofilesctl", "set", p]);
+        root.powerProfile = p;
+        reread.restart();
+    }
+    Timer { id: reread; interval: 600; onTriggered: getProfile.running = true }
+
+    // ── Automatic power saver on battery ──
+    // Unplug: remember the current profile and switch to power-saver.
+    // Plug in: restore what you had. Manual changes in between still work.
+    property string acProfile: ""
+    property var lastOnBattery: null       // last real AC state; startup flicker is ignored
+    Connections {
+        target: UPower
+        function onOnBatteryChanged() {
+            if (!root.startChecked || UPower.onBattery === root.lastOnBattery) return;
+            root.lastOnBattery = UPower.onBattery;
+            if (UPower.onBattery) {
+                root.acProfile = root.powerProfile !== "power-saver" ? root.powerProfile : (root.acProfile || "balanced");
+                root.setProfileTo("power-saver");
+            } else {
+                root.setProfileTo(root.acProfile || "balanced");
+            }
+        }
+    }
 
     // ── Power profile ──
     Process {
         id: getProfile
         command: ["powerprofilesctl", "get"]
-        stdout: StdioCollector { onStreamFinished: root.powerProfile = text.trim() || root.powerProfile }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.powerProfile = text.trim() || root.powerProfile;
+                // Starting on battery (login, resume): apply the battery rule once.
+                if (!root.startChecked && (UPower.displayDevice?.ready ?? false)) {
+                    root.startChecked = true;
+                    root.lastOnBattery = UPower.onBattery;
+                    if (UPower.onBattery && root.powerProfile !== "power-saver") {
+                        root.acProfile = root.powerProfile;
+                        root.setProfileTo("power-saver");
+                    }
+                }
+            }
+        }
     }
+    property bool startChecked: false
     Process { id: setProfile; onExited: getProfile.running = true }
 
     // ── Input method ──
@@ -76,4 +114,10 @@ Singleton {
         }
     }
     Component.onCompleted: { getProfile.running = true; procStat.reload(); }
+
+    IpcHandler { // qs ipc call power cycle | set power-saver
+        target: "power"
+        function cycle(): void { root.cycleProfile(); }
+        function set(profile: string): void { root.setProfileTo(profile); }
+    }
 }

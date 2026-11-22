@@ -16,7 +16,7 @@ Rectangle {
     width: parent ? parent.width : 380
     implicitHeight: body.implicitHeight + (compact ? 20 : 28)
     radius: Theme.radius
-    color: mouse.containsMouse ? Theme.raised : Theme.island
+    color: mouse.containsMouse ? Theme.raised : Theme.notif
     border.color: Theme.line
     Behavior on color { ColorAnimation { duration: 100 } }
 

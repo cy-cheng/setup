@@ -7,20 +7,25 @@ import qs.services
 
 // Slide-in dock on the right edge.
 //   Rest the pointer on the very right edge for ~0.7 s → the dock slides in;
-//   move away → it slides out. Super+D (qs ipc call dock toggle) toggles it.
+//   move away → it slides out. Super+D (qs ipc call dock toggle) opens it and keeps it
+//   open until Super+D is pressed again.
 //   While hidden, a short amber line on the edge means something is unread / needs you.
 Scope {
     id: root
     required property var modelData
 
     property bool revealed: false
+    property bool sticky: false                  // opened with Super+D: stays until toggled again
     readonly property int revealDelay: 700       // ms the pointer must rest on the edge
     readonly property bool attention: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier !== "quiet"); }
     readonly property bool urgent: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier === "needs"); }
 
     IpcHandler {
         target: "dock"
-        function toggle(): void { root.revealed = !root.revealed; }
+        function toggle(): void {
+            root.revealed = !(root.revealed && root.sticky);
+            root.sticky = root.revealed;
+        }
     }
 
     // ── Hot edge: 1 px strip on the right ──
@@ -37,7 +42,7 @@ Scope {
         Timer {
             interval: root.revealDelay
             running: edgeHover.hovered && !root.revealed
-            onTriggered: root.revealed = true
+            onTriggered: { root.revealed = true; root.sticky = false; }
         }
     }
 
@@ -84,7 +89,7 @@ Scope {
         HoverHandler { id: dockHover }
         Timer { // slide out shortly after the pointer leaves
             interval: 500
-            running: root.revealed && !dockHover.hovered && !edgeHover.hovered
+            running: root.revealed && !root.sticky && !dockHover.hovered && !edgeHover.hovered
             onTriggered: root.revealed = false
         }
 

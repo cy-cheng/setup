@@ -18,6 +18,15 @@ Item {
     readonly property var sink: Pipewire.defaultAudioSink
     PwObjectTracker { objects: [bar.sink] }
 
+    // Keep window → workspace info fresh as windows open, close and move.
+    Connections {
+        target: Hyprland
+        function onRawEvent(ev) {
+            if (["openwindow", "closewindow", "movewindow", "movewindowv2", "windowtitle"].includes(ev.name))
+                Hyprland.refreshToplevels();
+        }
+    }
+
     function appIcon(cls) {
         const e = DesktopEntries.heuristicLookup(cls);
         return Quickshell.iconPath(e?.icon || cls, "application-x-executable");
@@ -36,7 +45,8 @@ Item {
                 readonly property var apps: {
                     const out = [];
                     for (const t of Hyprland.toplevels.values)
-                        if (t.workspace === modelData) out.push(t.lastIpcObject?.class ?? "");
+                        // Live Wayland app id first; Hyprland's IPC class only fills in after a refresh.
+                        if (t.workspace === modelData) out.push(t.wayland?.appId || t.lastIpcObject?.class || "");
                     return out.filter(c => c !== "");
                 }
                 visible: mine
@@ -109,7 +119,7 @@ Item {
             readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
             text: online ? "wifi" : "wifi_off"
             color: online ? Theme.fg : Theme.red
-            MouseArea { anchors.fill: parent; onClicked: Quickshell.execDetached(["kitty", "-e", "nmtui"]) }
+            MouseArea { anchors.fill: parent; onClicked: Panels.toggle("wifi") }
         }
 
         Ring { // volume: scroll to change, click to mute

@@ -10,4 +10,5 @@ ShellRoot {
     Variants { model: Quickshell.screens; delegate: Frame {} }
     Variants { model: Quickshell.screens; delegate: Popups {} }
     Variants { model: Quickshell.screens; delegate: Centre {} }
+    Variants { model: Quickshell.screens; delegate: WifiPanel {} }
 }

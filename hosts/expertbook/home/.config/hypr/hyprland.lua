@@ -168,8 +168,8 @@ hl.config({
 
         blur = {
             enabled   = true,
-            size      = 6,      -- frosted glass for the Nixie shell + translucent windows
-            passes    = 3,
+            size      = 2,      -- frosted glass for the Nixie shell + translucent windows
+            passes    = 1,
             vibrancy  = 0.1696,
         },
     },

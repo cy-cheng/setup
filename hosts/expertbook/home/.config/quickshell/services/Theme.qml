@@ -38,7 +38,7 @@ Singleton {
     readonly property int icon: 18
 
     // ── Geometry (logical px, 4px grid) ──
-    readonly property int barH: 40          // top frame edge: islands hug the top, 8px gap below
+    readonly property int barH: 36          // top frame edge: islands (32) hug the top, 4px below
     readonly property int railW: 6          // right frame edge (dock is a slide-in overlay)
     readonly property int edge: 6           // left/bottom frame edges
     readonly property int frameRadius: 20   // inner rounded corners of the frame

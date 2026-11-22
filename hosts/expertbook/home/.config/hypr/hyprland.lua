@@ -124,7 +124,7 @@ hl.env("QT_IM_MODULES", "wayland;fcitx")
 hl.config({
     general = {
         gaps_in  = 4,   -- 8px between windows
-        gaps_out = 8,   -- 8px inside the Nixie frame
+        gaps_out = { top = 4, right = 8, bottom = 8, left = 8 },   -- 4px under the bar, 8px elsewhere
 
         border_size = 2,
 

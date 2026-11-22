@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import re
+import shutil
+import stat
+import sys
+import urllib.parse
+from pathlib import Path
+
+
+def parse_size(value: str) -> int:
+    s = value.strip().upper()
+    units = {
+        "TIB": 1024**4, "TB": 1024**4, "T": 1024**4,
+        "GIB": 1024**3, "GB": 1024**3, "G": 1024**3,
+        "MIB": 1024**2, "MB": 1024**2, "M": 1024**2,
+        "KIB": 1024, "KB": 1024, "K": 1024,
+        "B": 1,
+    }
+
+    for suffix in sorted(units, key=len, reverse=True):
+        if s.endswith(suffix):
+            number = s[:-len(suffix)].strip()
+            return int(float(number) * units[suffix])
+
+    return int(float(s))
+
+
+def human(n: int) -> str:
+    value = float(n)
+    for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
+        if value < 1024 or unit == "TiB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
+
+
+def decode_mount_path(path: str) -> str:
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), path)
+
+
+def trash_roots() -> list[Path]:
+    uid = str(os.getuid())
+    roots: list[Path] = []
+
+    xdg_data_home = os.environ.get("XDG_DATA_HOME")
+    if xdg_data_home:
+        roots.append(Path(xdg_data_home).expanduser() / "Trash")
+    else:
+        roots.append(Path.home() / ".local/share/Trash")
+
+    try:
+        with open("/proc/self/mountinfo", "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 5:
+                    mount_point = Path(decode_mount_path(parts[4]))
+                    roots.append(mount_point / ".Trash" / uid)
+                    roots.append(mount_point / f".Trash-{uid}")
+    except OSError:
+        pass
+
+    seen: set[str] = set()
+    existing: list[Path] = []
+
+    for root in roots:
+        files_dir = root / "files"
+        try:
+            key = str(root.resolve(strict=False))
+        except OSError:
+            key = str(root)
+
+        if key not in seen and files_dir.is_dir():
+            seen.add(key)
+            existing.append(root)
+
+    return existing
+
+
+def disk_usage(path: Path) -> int:
+    total = 0
+
+    def add_one(p: Path) -> None:
+        nonlocal total
+        try:
+            st = os.lstat(p)
+        except OSError:
+            return
+
+        blocks = getattr(st, "st_blocks", 0)
+        total += blocks * 512 if blocks else st.st_size
+
+    add_one(path)
+
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return total
+
+    if stat.S_ISDIR(st.st_mode):
+        for root, dirs, files in os.walk(path, topdown=True, followlinks=False):
+            root_path = Path(root)
+
+            if root_path != path:
+                add_one(root_path)
+
+            for name in files:
+                add_one(root_path / name)
+
+    return total
+
+
+def original_path(info_file: Path, fallback: Path) -> str:
+    try:
+        with open(info_file, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.startswith("Path="):
+                    return urllib.parse.unquote(line[5:].rstrip("\n"))
+    except OSError:
+        pass
+
+    return str(fallback)
+
+
+def scan_entries() -> list[dict]:
+    entries = []
+
+    for root in trash_roots():
+        files_dir = root / "files"
+        info_dir = root / "info"
+
+        try:
+            names = os.listdir(files_dir)
+        except OSError:
+            continue
+
+        for name in names:
+            path = files_dir / name
+            info_file = info_dir / f"{name}.trashinfo"
+            size = disk_usage(path)
+
+            entries.append({
+                "name": name,
+                "path": path,
+                "info": info_file,
+                "size": size,
+                "original": original_path(info_file, path),
+            })
+
+    entries.sort(key=lambda e: e["size"], reverse=True)
+    return entries
+
+
+def remove_entry(entry: dict) -> None:
+    path = entry["path"]
+    info = entry["info"]
+
+    st = os.lstat(path)
+
+    if stat.S_ISDIR(st.st_mode):
+        shutil.rmtree(path)
+    else:
+        os.unlink(path)
+
+    try:
+        os.unlink(info)
+    except FileNotFoundError:
+        pass
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max", default="1G", help="Maximum Trash size, e.g. 1G, 750M, 2GiB")
+    parser.add_argument("--top", type=int, default=10, help="Number of largest entries to show")
+    args = parser.parse_args()
+
+    limit = parse_size(args.max)
+
+    while True:
+        entries = scan_entries()
+        total = sum(e["size"] for e in entries)
+
+        if total <= limit:
+            return 0
+
+        print()
+        print(f"Trash is {human(total)}, above limit {human(limit)}.")
+        print(f"Largest {min(args.top, len(entries))} Trash entries:")
+
+        shown = entries[:args.top]
+        for i, e in enumerate(shown, 1):
+            print(f"{i:2}. {human(e['size']):>10}  {e['original']}")
+
+        if not sys.stdin.isatty():
+            print("Not prompting because stdin is not interactive.", file=sys.stderr)
+            return 0
+
+        removed_any = False
+
+        for i, e in enumerate(shown, 1):
+            answer = input(f"Permanently delete #{i} from Trash? [y/N/q] ").strip().lower()
+
+            if answer in {"q", "quit"}:
+                return 0
+
+            if answer in {"y", "yes"}:
+                try:
+                    remove_entry(e)
+                    print(f"Deleted from Trash: {e['original']}")
+                    removed_any = True
+                    break
+                except OSError as exc:
+                    print(f"Could not delete {e['original']}: {exc}", file=sys.stderr)
+
+        if not removed_any:
+            print("No Trash entries removed.")
+            return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

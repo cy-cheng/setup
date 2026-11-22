@@ -1,0 +1,58 @@
+#!/bin/bash
+# Keep this laptop's configs in the repo.
+#   bash sync-configs.sh pull   copy live files from ~ into hosts/expertbook/home/ (default)
+#   bash sync-configs.sh push   copy repo files back into ~ (existing files saved as *.bak)
+# Personal data is deliberately not listed: SSH config, Rime user dictionaries,
+# images, fonts, sync-screenshots (has a server path), anything with credentials.
+set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+store="$here/home"
+
+FILES=(
+    .config/hypr/hyprland.lua
+    .config/hypr/hypridle.conf
+    .config/hypr/hyprlock.conf
+    .config/hypr/application-style.conf
+    .config/hypr/scripts/lock-session.sh
+    .config/dunst/dunstrc
+    .config/fcitx5/config
+    .config/fcitx5/profile
+    .config/fcitx5/conf/classicui.conf
+    .config/fcitx5/conf/chewing.conf
+    .config/fcitx5/conf/notifications.conf
+    .local/share/fcitx5/rime/default.custom.yaml
+    .config/kitty/kitty.conf
+    .config/fish/config.fish
+    .config/fish/fish_plugins
+    .config/fish/functions/rm-to-trash.fish
+    .config/qt6ct/qt6ct.conf
+    .config/gtk-3.0/settings.ini
+    .config/gtk-4.0/settings.ini
+    .config/chrome-flags.conf
+    .config/electron-flags.conf
+    .config/code-flags.conf
+    .config/discord-flags.conf
+    .config/slack-flags.conf
+    .local/bin/brightness
+    .local/bin/trash-prune-prompt
+)
+
+case "${1:-pull}" in
+    pull)
+        for f in "${FILES[@]}"; do
+            if [ -e "$HOME/$f" ]; then
+                install -D -m "$(stat -c %a "$HOME/$f")" "$HOME/$f" "$store/$f"
+            else
+                echo "missing (skipped): ~/$f"
+            fi
+        done
+        echo "Pulled ${#FILES[@]} paths into $store" ;;
+    push)
+        for f in "${FILES[@]}"; do
+            [ -e "$store/$f" ] || continue
+            [ -e "$HOME/$f" ] && ! cmp -s "$store/$f" "$HOME/$f" && cp -a "$HOME/$f" "$HOME/$f.bak"
+            install -D -m "$(stat -c %a "$store/$f")" "$store/$f" "$HOME/$f"
+        done
+        echo "Pushed configs into ~ (changed files kept as *.bak)" ;;
+    *) echo "usage: $0 [pull|push]" >&2; exit 2 ;;
+esac

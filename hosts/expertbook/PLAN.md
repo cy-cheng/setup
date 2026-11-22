@@ -1,0 +1,64 @@
+# New laptop setup plan (ASUS ExpertBook B9406, Core Ultra 7 356H)
+
+Source machine: `arch` (Zenbook UX3402ZA, 192.168.50.232). Desktop = Nixie repo
+`github.com/cy-cheng/setup` (branch `agent/native-nixie-shell`).
+Status: nothing installed yet. [x] = already on this laptop.
+
+## 1. Core system
+- [x] base linux linux-firmware intel-ucode grub efibootmgr sudo networkmanager
+- base-devel git openssh man-db man-pages less unzip zip rsync wget usbutils
+- sof-firmware (audio on Intel), intel-media-driver + vulkan-intel (GPU video/Vulkan)
+- fwupd (BIOS/firmware updates), power-profiles-daemon, zram-generator, smartmontools
+- bluez bluez-utils, pipewire-alsa pipewire-jack [x pipewire pipewire-pulse wireplumber]
+- tailscale, iw
+- DROP from arch: xf86-video-amdgpu/ati/nouveau, vulkan-radeon/nouveau, xorg-server/xinit,
+  wireless_tools, wpa_supplicant (NM uses iwd/wpa anyway; decide), os-prober (if no dual boot)
+
+## 2. Nixie desktop (what install.sh needs)
+- [x] hyprland hypridle hyprlock hyprpolkitagent xdg-desktop-portal-hyprland rofi kitty
+- hyprsunset hyprpicker hyprshot dunst uwsm
+- build deps: rustup (cargo), gtk3 gtk-layer-shell libpulse libnm jq curl geoclue pkgconf
+- fcitx5 fcitx5-chewing fcitx5-rime fcitx5-mozc fcitx5-gtk fcitx5-qt fcitx5-configtool
+- qt6-wayland qt5-wayland qt6ct, gnome-keyring + seahorse, xdg-utils
+- AUR: yay, input-remapper-git (mouse keys), blueberry
+- Fonts: noto-fonts-emoji, ttf-cascadia-mono-nerd (kitty/dunst "CaskaydiaMono NF"),
+  adwaita-fonts (dunst), otf-font-awesome [x noto-fonts noto-fonts-cjk]
+  + copy private BO NX / TT Chocolates from arch:/usr/local/share/fonts
+- DROP: waybar wofi eww ags/astal hyprpaper (superseded by Nixie), all KDE Plasma + GNOME bits,
+  gdm AND sddm (pick one lighter login, see 6), neofetch (dead -> fastfetch)
+
+## 3. Shell & CLI
+- fish (+ fisher, tide, nvm.fish), zoxide, fzf, btop, zellij or tmux (arch has both; pick one)
+- neovim + ripgrep fd tree-sitter-cli (telescope/treesitter need these), uv, github-cli, typst
+
+## 4. Apps (pick)
+firefox, google-chrome, visual-studio-code-bin, discord, libreoffice-fresh, obs-studio, gimp,
+vlc, zathura(-pdf-poppler)/evince, xournalpp, remmina, onedrive-abraunegg, anydesk-bin,
+KiCad (flatpak), freecad, spectacle?, qpwgraph, rpi-imager
+
+## 5. Dev / EDA (pick)
+docker docker-compose, dotnet-sdk, iverilog yosys gtkwave, postgresql, openmpi, cmake meson,
+npm pnpm (or via nvm/mise), ruby, go, julia (juliaup), platformio
+
+## 6. Things to improve (discussion)
+1. arch's ~/.config/fish/config.fish has expired AWS session creds hardcoded — drop those
+   lines when porting fish config (never commit them).
+2. Dotfiles are split: Nixie in `setup`, nvim in `cy-cheng/nvim`, fish/kitty/zellij/git untracked.
+   Proposal: add fish/kitty/zellij/git + a package list (pkglist.txt) to `setup`, and per-host
+   files (this laptop's libinput quirk, touchscreen fix) under system/hosts/<name>.
+3. Touchpad: drop Zenbook ELAN recovery units; keep libinput quirk for PixArt 093A:4F05.
+   Keep mouse keys (Fn+F6) + power-button menu.
+4. Touchscreen: Raydium is rejected by libinput (kernel reports min==max on ABS_X) — needs a fix.
+5. Login: sddm/gdm pull in KDE/GNOME. Options: greetd+tuigreet, or tty autologin + `uwsm start`.
+6. fish: `alias vim "uv run nvim"`, `nvm use latest` on every shell start (slow), manual ssh-agent
+   -> consider mise for node, gnome-keyring/systemd ssh-agent.
+7. Neovim: lazy.nvim, blink.cmp, mason+lspconfig, telescope, neo-tree, noice, copilot.vim AND
+   codecompanion, two themes (catppuccin + tokyonight), barbar, lualine, typst-preview, markview.
+   Ideas: native vim.lsp.config (0.11+), drop redundant theme, fzf-lua/snacks picker, etc.
+
+## 7. Decisions so far (2026-11-22)
+- Neovim: rebuilt, branch `agent` of cy-cheng/nvim (tokyonight + noice kept, no Copilot).
+- Shell: fish (config ported, tide prompt pending). Login: greetd + tuigreet. Lock: hyprlock + hypridle (+ fingerprint).
+- Notifications/shell: Quickshell. Tiers (Needs you / FYI / Quiet / System), per-app rules,
+  attention rail permanently on the RIGHT edge, click → source window (not the arrival workspace).
+- Reminder list: try Zed; projector/monitor config; agent session manager across machines.

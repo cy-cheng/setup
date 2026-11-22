@@ -34,6 +34,7 @@ FILES=(
     .config/discord-flags.conf
     .config/slack-flags.conf
     .local/bin/brightness
+    .local/bin/display-mode
     .local/bin/trash-prune-prompt
 )
 

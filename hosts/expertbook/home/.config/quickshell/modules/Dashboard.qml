@@ -274,7 +274,7 @@ PanelWindow {
                         readonly property bool isCharging: dash.battery?.state === UPowerDeviceState.Charging
                         charging: isCharging
                         name: "Battery"; icon: isCharging ? "bolt" : !UPower.onBattery ? "power" : "battery_full"
-                        tint: isCharging ? Theme.yellow
+                        tint: (isCharging || !UPower.onBattery) ? Theme.yellow
                             : UPower.onBattery && frac <= 0.15 ? Theme.red
                             : Sys.powerProfile === "power-saver" ? Theme.green
                             : Sys.powerProfile === "performance" ? Theme.amber : Theme.fg

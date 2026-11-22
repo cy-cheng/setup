@@ -49,7 +49,7 @@ Quickshell 0.3, started by Hyprland (`qs -d -n`); it also owns desktop notificat
 | `modules/Background.qml` + `TubeGlow.qml` | Nixie divergence-meter wallpaper |
 | `modules/Reserve.qml`, `Frame.qml` | Screen frame and the space it reserves |
 | `modules/BarContent.qml` + `Island.qml`, `Ring.qml`, `Icon.qml`, `Label.qml`, `Tip.qml` | Bar: workspaces, clock, tray, status rings |
-| `modules/DockWindow.qml` + `DockContent.qml`, `DockTile.qml` | Right-edge dock (rest the pointer 0.7 s, or Super+D) |
+| `modules/DockWindow.qml` + `DockContent.qml`, `DockTile.qml` | Right-edge dock (rest the pointer 0.7 s, or Super+Shift+D to pin) |
 | `modules/Popups.qml`, `Centre.qml`, `NotifCard.qml` | Notification popups and the centre (slides in from the right, Super+N) |
 | `modules/Dashboard.qml` + `DashGauge.qml`, `DashToggle.qml` | Drawer under the clock (click it or Super+A): media, gauges, quick toggles |
 | `modules/Launcher.qml`, `Clipboard.qml` | Super+R apps / calculator / commands; Super+V clipboard history |

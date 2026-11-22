@@ -370,7 +370,9 @@ hl.bind("code:66", hl.dsp.exec_cmd("fcitx5-remote -t"))
 hl.bind("XF86PowerOff", hl.dsp.exec_cmd("~/.local/bin/power-button"), { locked = true })
 
 -- Dock: Super+D slides it in/out (or rest the pointer on the right edge ~2 s)
-hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call dock toggle"))
+-- Super+D: Discord scratchpad (starts Discord if needed); Super+Shift+D pins the dock
+hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("~/.local/bin/scratch discord '^discord$' discord"))
+hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("qs ipc call dock toggle"))
 hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call panels toggle dashboard"))
 
 -- Notifications: Super+N centre, Super+Shift+N focus mode (only "needs you" gets through)
@@ -400,6 +402,13 @@ hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = tr
 -- See https://wiki.hypr.land/configuring/core/rules/
 
 -- Example window rules that are useful
+
+-- Named scratchpads: apps that live in their own special workspace.
+hl.window_rule({
+    name  = "scratch-discord",
+    match = { class = "^discord$" },
+    workspace = "special:discord silent",
+})
 
 local suppressMaximizeRule = hl.window_rule({
     -- Ignore maximize requests from all apps. You'll probably like this.

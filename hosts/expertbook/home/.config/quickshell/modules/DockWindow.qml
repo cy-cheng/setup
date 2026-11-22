@@ -7,22 +7,22 @@ import qs.services
 
 // Slide-in dock on the right edge.
 //   Rest the pointer on the very right edge for ~0.7 s → the dock slides in;
-//   move away → it slides out. Super+D (qs ipc call dock toggle) opens it and keeps it
-//   open until Super+D is pressed again.
+//   move away → it slides out. Super+Shift+D (qs ipc call dock toggle) opens it and keeps it
+//   open until it is pressed again.
 //   While hidden, a short amber line on the edge means something is unread / needs you.
 Scope {
     id: root
     required property var modelData
 
     property bool revealed: false
-    property bool sticky: false                  // opened with Super+D: stays until toggled again
+    property bool sticky: false                  // opened with Super+Shift+D: stays until toggled again
     readonly property int revealDelay: 700       // ms the pointer must rest on the edge
     readonly property bool attention: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier !== "quiet"); }
     readonly property bool urgent: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier === "needs"); }
 
     // ── Where is the cursor? ──
     // Polled from Hyprland while it matters: after the pointer touched the edge, and
-    // while the dock is open (unless pinned with Super+D). Resting still counts.
+    // while the dock is open (unless pinned with Super+Shift+D). Resting still counts.
     property bool watching: false
     property real edgeSince: 0
     property real awaySince: 0

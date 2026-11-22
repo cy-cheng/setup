@@ -40,6 +40,7 @@ FILES=(
     .local/bin/charge-limit
     .local/bin/display-mode
     .local/bin/power-button
+    .local/bin/scratch
     .local/bin/start-fcitx
     .local/bin/nixie-focus
     .local/share/dbus-1/services/org.freedesktop.Notifications.service

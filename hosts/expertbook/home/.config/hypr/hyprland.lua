@@ -371,6 +371,7 @@ hl.bind("XF86PowerOff", hl.dsp.exec_cmd("~/.local/bin/power-button"), { locked =
 
 -- Dock: Super+D slides it in/out (or rest the pointer on the right edge ~2 s)
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call dock toggle"))
+hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call panels toggle dashboard"))
 
 -- Notifications: Super+N centre, Super+Shift+N focus mode (only "needs you" gets through)
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))

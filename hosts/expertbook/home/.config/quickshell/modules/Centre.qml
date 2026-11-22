@@ -5,7 +5,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.services
 
-// Notification centre: the rail, expanded. Grouped by source, "needs" first.
+// Notification centre (slides in from the right edge). Grouped by source, "needs" first.
 // Super+N toggles it (qs ipc call notifs toggle); Esc or a click outside closes.
 PanelWindow {
     id: centre
@@ -15,7 +15,8 @@ PanelWindow {
     readonly property bool onFocusedScreen: Quickshell.screens.length < 2
         || modelData.name === (Hyprland.focusedMonitor?.name ?? "")
 
-    visible: Notifs.centreOpen && onFocusedScreen
+    readonly property bool open: Notifs.centreOpen && onFocusedScreen
+    visible: open || card.x < width        // stays mapped while it slides out
     anchors { top: true; bottom: true; right: true }
     margins { top: Theme.gap; bottom: Theme.gap; right: Theme.gap }
     implicitWidth: 400
@@ -30,12 +31,17 @@ PanelWindow {
 
     HyprlandFocusGrab { // click outside closes the centre
         windows: [centre]
-        active: centre.visible
+        active: centre.open
         onCleared: Notifs.centreOpen = false
     }
 
+    // Slides in from the right edge (where the dock lives) and back out.
     Rectangle {
-        anchors.fill: parent
+        id: card
+        width: parent.width
+        height: parent.height
+        x: centre.open ? 0 : width + Theme.gap * 2
+        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         radius: Theme.radius + 4
         color: Theme.notif          // same see-through glass as the cards
         border.color: Theme.line

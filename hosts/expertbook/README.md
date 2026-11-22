@@ -42,14 +42,15 @@ Quickshell 0.3, started by Hyprland (`qs -d -n`); it also owns desktop notificat
 |---|---|
 | `shell.qml` | One instance of every window below per screen |
 | `services/Theme.qml` | Colours, fonts (Unbounded, Material Symbols), sizes |
-| `services/Sys.qml` | Power profile (+ power saver on battery), input method, CPU, brightness, keep-awake |
+| `services/Sys.qml` | Power profile (+ power saver on battery), input method, CPU, memory, brightness, keep-awake |
 | `services/Notifs.qml` | Notification server: tiers, per-app rules, history, focus mode |
-| `services/Panels.qml` | Which drop-down is open (Wi-Fi, Bluetooth, launcher, clipboard, power) |
+| `services/Panels.qml` | Which drop-down is open (Wi-Fi, Bluetooth, launcher, clipboard, power, dashboard) |
 | `modules/Background.qml` + `TubeGlow.qml` | Nixie divergence-meter wallpaper |
 | `modules/Reserve.qml`, `Frame.qml` | Screen frame and the space it reserves |
 | `modules/BarContent.qml` + `Island.qml`, `Ring.qml`, `Icon.qml`, `Label.qml`, `Tip.qml` | Bar: workspaces, clock, tray, status rings |
 | `modules/DockWindow.qml` + `DockContent.qml`, `DockTile.qml` | Right-edge dock (rest the pointer 0.7 s, or Super+D) |
-| `modules/Popups.qml`, `Centre.qml`, `NotifCard.qml` | Notification popups and centre |
+| `modules/Popups.qml`, `Centre.qml`, `NotifCard.qml` | Notification popups and the centre (slides in from the right, Super+N) |
+| `modules/Dashboard.qml` + `DashGauge.qml`, `DashToggle.qml` | Drawer under the clock (click it or Super+A): media, gauges, quick toggles |
 | `modules/Launcher.qml`, `Clipboard.qml` | Super+R apps / calculator / commands; Super+V clipboard history |
 | `modules/WifiPanel.qml`, `BluetoothPanel.qml`, `PowerMenu.qml`, `Osd.qml` | Panels, power menu, volume/brightness OSD |
 

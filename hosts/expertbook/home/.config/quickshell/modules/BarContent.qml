@@ -105,7 +105,8 @@ Item {
         Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "HH:mm")
                 font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
     }
-    Tip { parent: clockIsland; text: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") }  // outside the row: no extra gap
+    MouseArea { parent: clockIsland; anchors.fill: parent; onClicked: Panels.toggle("dashboard") }
+    Tip { parent: clockIsland; text: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") + " · click for dashboard" }  // outside the row: no extra gap
 
     // ── Right: system tray (only when apps put icons there) ─────────────
     Island {

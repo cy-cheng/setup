@@ -12,6 +12,8 @@ Singleton {
     property string powerProfile: "balanced"   // power-saver | balanced | performance
     property string inputMethod: ""            // fcitx5 im name: keyboard-us, rime, mozc, keyboard-de
     property real cpu: 0                        // 0..1
+    property real mem: 0                        // 0..1 used (MemTotal - MemAvailable)
+    property real memTotalGiB: 0
     property real brightness: 0.6               // 0..1 (from ~/.local/bin/brightness state)
     property bool keepAwake: false              // holds an idle inhibitor (hypridle honours it)
 
@@ -110,13 +112,24 @@ Singleton {
         }
     }
 
+    // ── Memory from /proc/meminfo ──
+    FileView {
+        id: memInfo
+        path: "/proc/meminfo"
+        onLoaded: {
+            const kb = k => { const m = text().match(new RegExp("^" + k + ":\\s+(\\d+)", "m")); return m ? +m[1] : 0; };
+            const total = kb("MemTotal"), avail = kb("MemAvailable");
+            if (total > 0) { root.mem = 1 - avail / total; root.memTotalGiB = total / 1048576; }
+        }
+    }
+
     Timer {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         property int tick: 0
         onTriggered: {
             tick += 1;
             if (!getIme.running) getIme.running = true;
-            if (tick % 2 === 0) procStat.reload();
+            if (tick % 2 === 0) { procStat.reload(); memInfo.reload(); }
             if (tick % 5 === 0 && !getProfile.running) getProfile.running = true;
         }
     }

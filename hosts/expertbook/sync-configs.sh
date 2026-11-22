@@ -35,6 +35,7 @@ FILES=(
     .config/discord-flags.conf
     .config/slack-flags.conf
     .config/spotify-launcher.conf
+    .config/mpv/mpv.conf
     .local/bin/brightness
     .local/bin/charge-limit
     .local/bin/display-mode

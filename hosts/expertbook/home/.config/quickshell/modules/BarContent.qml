@@ -102,12 +102,12 @@ Item {
         id: clockIsland
         x: (bar.width - width) / 2          // centred on the screen, so the bar reads symmetric
         anchors.top: parent.top
-        Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "ddd d MMM"); color: Theme.muted }
-        Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "HH:mm")
+        Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(Sys.zoned(clock.date), "ddd d MMM"); color: Theme.muted }
+        Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(Sys.zoned(clock.date), "HH:mm")
                 font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
     }
     MouseArea { parent: clockIsland; anchors.fill: parent; onClicked: Panels.toggle("dashboard") }
-    Tip { parent: clockIsland; text: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") + " · click for dashboard" }  // outside the row: no extra gap
+    Tip { parent: clockIsland; text: Qt.formatDateTime(Sys.zoned(clock.date), "dddd, d MMMM yyyy") + " · click for dashboard" }  // outside the row: no extra gap
 
     // ── Right: system tray (only when apps put icons there) ─────────────
     Island {

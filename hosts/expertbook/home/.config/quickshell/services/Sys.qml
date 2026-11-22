@@ -17,6 +17,26 @@ Singleton {
     property real brightness: 0.6               // 0..1 (from ~/.local/bin/brightness state)
     property bool keepAwake: false              // holds an idle inhibitor (hypridle honours it)
 
+    // ── Timezone ──
+    // Qt caches the timezone at start-up, so a later change (travel; the NetworkManager
+    // hook sets it from the IP) wouldn't show. Track the real UTC offset and shift times.
+    property int tzOffsetMin: -(new Date()).getTimezoneOffset()
+    function zoned(d) {
+        if (!d) return d;
+        return new Date(d.getTime() + (tzOffsetMin + d.getTimezoneOffset()) * 60000);
+    }
+    Process {
+        id: tzProbe
+        command: ["date", "+%z"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = text.trim().match(/^([+-])(\d\d)(\d\d)$/);
+                if (m) root.tzOffsetMin = (m[1] === "-" ? -1 : 1) * (parseInt(m[2]) * 60 + parseInt(m[3]));
+            }
+        }
+    }
+    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: tzProbe.running = true }
+
     // Keep awake: a systemd idle inhibitor lives as long as this process runs.
     Process {
         running: root.keepAwake

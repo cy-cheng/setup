@@ -48,7 +48,7 @@ PanelWindow {
         return "stable";
     }
     function update() {
-        const now = new Date();
+        const now = Sys.zoned(new Date());
         const phase = phaseFor(now.getSeconds());
         if (phase === "stable") {
             digits = stableDigits; dots = stableDots; rolling = false;

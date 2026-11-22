@@ -67,3 +67,9 @@ npm pnpm (or via nvm/mise), ruby, go, julia (juliaup), platformio
 - s2idle suspend never resumed (log stops at `PM: suspend entry (s2idle)`; hard reboot). BIOS B9406CAA.304 is the latest.
 - Replaced with hibernate: `install/hibernate-setup.sh` (32 GB /swapfile, GRUB resume=/resume_offset=). Verified: `systemctl hibernate` restores the session.
 - hypridle: screen off 2 min on battery / 5.5 min on AC, lock 5 min, hibernate 30 min on battery. Power menu: Hibernate instead of Suspend.
+
+## Timezone (2026-11-22)
+- automatic-timezoned/GeoClue failed: GeoClue keeps clients "waiting for agent" without a GNOME/KDE location agent, even with an empty agent whitelist. Reverted and uninstalled.
+- Now: NetworkManager dispatcher `install/timezone/90-auto-timezone` looks up the timezone of the physical uplink's IP (ipinfo.io, fallback ipwho.is; curl --interface so the EAILab VPN doesn't skew it). Verified UTC -> Asia/Taipei.
+- Quickshell caches the timezone; Sys.qml tracks `date +%z` every 30 s and Sys.zoned() shifts the bar/dashboard/background/notification clocks.
+- Removed unused packages: rofi, hyprpolkitagent, geoclue, automatic-timezoned, AUR -debug packages and leftover build tools (meson, gtk-doc, gobject-introspection, asar, python build tools).

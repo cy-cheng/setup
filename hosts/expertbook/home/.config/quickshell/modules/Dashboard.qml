@@ -108,7 +108,7 @@ PanelWindow {
                     Layout.fillWidth: true
                     spacing: 14
                     Label {
-                        text: Qt.formatDateTime(clock.date, "HH:mm")
+                        text: Qt.formatDateTime(Sys.zoned(clock.date), "HH:mm")
                         font.pixelSize: 40
                         font.weight: Font.DemiBold
                     }
@@ -116,8 +116,8 @@ PanelWindow {
                         Layout.fillWidth: true
                         Layout.maximumWidth: 100000
                         spacing: 4
-                        Label { text: Qt.formatDateTime(clock.date, "dddd"); font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
-                        Label { text: Qt.formatDateTime(clock.date, "d MMMM yyyy"); color: Theme.muted; font.pixelSize: Theme.textSm }
+                        Label { text: Qt.formatDateTime(Sys.zoned(clock.date), "dddd"); font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
+                        Label { text: Qt.formatDateTime(Sys.zoned(clock.date), "d MMMM yyyy"); color: Theme.muted; font.pixelSize: Theme.textSm }
                     }
                     ColumnLayout {
                         spacing: 4

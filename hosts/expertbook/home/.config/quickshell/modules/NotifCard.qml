@@ -64,7 +64,7 @@ Rectangle {
                             width: 6; height: 6; radius: 3; color: Theme.amber }
                 Label { text: card.rec.appName; color: card.needs ? Theme.amber : Theme.muted
                         font.pixelSize: Theme.textSm; font.weight: Font.DemiBold }
-                Label { text: "· " + Qt.formatTime(card.rec.time, "HH:mm") + (card.rec.count > 1 ? " · ×" + card.rec.count : "")
+                Label { text: "· " + Qt.formatTime(Sys.zoned(card.rec.time), "HH:mm") + (card.rec.count > 1 ? " · ×" + card.rec.count : "")
                         color: Theme.faint; font.pixelSize: Theme.textSm }
             }
             Label {

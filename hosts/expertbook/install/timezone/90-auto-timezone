@@ -1,0 +1,25 @@
+#!/bin/sh
+# NetworkManager dispatcher: set the timezone from the public IP of the physical uplink
+# whenever a network comes up. The lookup is pinned to the Wi-Fi/Ethernet interface, so
+# a VPN that carries all traffic (EAILab) doesn't make it report the VPN's location.
+# Installed to /etc/NetworkManager/dispatcher.d/90-auto-timezone (root, mode 755).
+iface="$1"; action="$2"
+case "$action" in up|connectivity-change|dhcp4-change) ;; *) exit 0 ;; esac
+case "$iface" in tun*|wg*|lo|tailscale*|docker*|veth*|virbr*) exit 0 ;; esac
+
+# Physical uplink: the default route that isn't a VPN/tunnel.
+dev=$(ip -4 route show default | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}' \
+      | grep -vE '^(tun|wg|tailscale)' | head -n1)
+[ -n "$dev" ] || exit 0
+
+fetch() { curl -fsS --interface "$dev" --max-time 8 "$1" 2>/dev/null; }
+# ipinfo.io answers in plain text; ipwho.is (JSON) is the fallback.
+tz=$(fetch https://ipinfo.io/timezone | tr -d '[:space:]')
+[ -n "$tz" ] && [ -f "/usr/share/zoneinfo/$tz" ] || \
+    tz=$(fetch 'https://ipwho.is/?fields=timezone' | sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p')
+[ -n "$tz" ] && [ -f "/usr/share/zoneinfo/$tz" ] || { logger -t auto-timezone "lookup via $dev failed"; exit 0; }
+
+current=$(timedatectl show -p Timezone --value)
+if [ "$tz" != "$current" ]; then
+    timedatectl set-timezone "$tz" && logger -t auto-timezone "timezone $current -> $tz (via $dev)"
+fi

@@ -47,7 +47,7 @@ hl.monitor({
 -- Set programs that you use
 local terminal    = "kitty"
 local fileManager = "thunar"
-local menu = "rofi -show run"
+local menu = "qs ipc call panels toggle launcher"   -- Nixie launcher (apps, calculator, > commands)
 
 
 -------------------

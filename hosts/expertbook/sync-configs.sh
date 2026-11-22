@@ -21,6 +21,7 @@ FILES=(
     .config/fcitx5/conf/notifications.conf
     .local/share/fcitx5/rime/default.custom.yaml
     .config/kitty/kitty.conf
+    .config/fontconfig/fonts.conf
     .config/fish/config.fish
     .config/fish/fish_plugins
     .config/fish/conf.d/theme.fish

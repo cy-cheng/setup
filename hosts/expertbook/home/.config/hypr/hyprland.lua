@@ -121,14 +121,14 @@ hl.env("QT_IM_MODULES", "wayland;fcitx")
 -- Refer to https://wiki.hypr.land/configuring/core/config-options/
 hl.config({
     general = {
-        gaps_in  = 5,
-        gaps_out = 20,
+        gaps_in  = 4,   -- 8px between windows
+        gaps_out = 8,   -- 8px inside the Nixie frame
 
         border_size = 2,
 
         col = {
-            active_border   = { colors = {"rgba(33ccffee)", "rgba(00ff99ee)"}, angle = 45 },
-            inactive_border = "rgba(595959aa)",
+            active_border   = "rgba(ffac32cc)",   -- Nixie amber: the focused window
+            inactive_border = "rgba(2e2c2aff)",   -- frame hairline grey
         },
 
         -- Set to true to enable resizing windows by clicking and dragging on borders and gaps
@@ -150,7 +150,7 @@ hl.config({
         -- Warm + dim filter (temporary; replace with hyprsunset once installed)
         screen_shader  = "/home/brine/.config/hypr/shaders/warm-dim.frag",
 
-        rounding       = 10,
+        rounding       = 12,  -- frame inner radius (20) minus gap (8)
         rounding_power = 2,
 
         -- Change transparency of focused and unfocused windows
@@ -276,7 +276,7 @@ hl.config({
         kb_layout  = "us",
         kb_variant = "",
         kb_model   = "",
-        kb_options = "",
+        kb_options = "caps:none", -- Caps Lock toggles the input method instead (bind below)
         kb_rules   = "",
 
         follow_mouse = 1,
@@ -359,6 +359,9 @@ hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_S
 hl.bind("XF86MonBrightnessUp",  hl.dsp.exec_cmd("~/.local/bin/brightness up"),                    { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("~/.local/bin/brightness down"),                  { locked = true, repeating = true })
 
+-- Caps Lock (keycode 66, its normal function disabled above): English <-> 注音/last input method
+hl.bind("code:66", hl.dsp.exec_cmd("fcitx5-remote -t"))
+
 -- Notifications: Super+N centre, Super+Shift+N focus mode (only "needs you" gets through)
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))
 hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifs focus"))
@@ -409,7 +412,7 @@ hl.window_rule({
 -- Nixie shell (Quickshell): frosted glass behind the bar, rail, popups and centre.
 hl.layer_rule({
     name  = "nixie-shell-blur",
-    match = { namespace = "^nixie-(bar|rail|popups|centre)$" },
+    match = { namespace = "^nixie-(frame|popups|centre)$" },
     blur = true,
     ignore_alpha = 0.3,
 })

@@ -1,22 +1,24 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import qs.services
 
-// One notification. Click: go to the source. ×: dismiss. Action buttons if any.
+// One notification: app icon · (dot) app name · meta / summary / body / actions.
+// Greyscale card; amber only for the "needs you" dot and app name.
 Rectangle {
     id: card
     required property var rec
-    property bool compact: false        // centre list uses the compact form
+    property bool compact: false
 
-    readonly property color tint: Theme["tier" + rec.tier.charAt(0).toUpperCase() + rec.tier.slice(1)]
+    readonly property bool needs: rec.tier === "needs"
     readonly property var actions: (rec.notif?.actions ?? []).filter(a => a.identifier !== "default")
 
-    width: parent ? parent.width : 360
-    implicitHeight: col.implicitHeight + (compact ? 14 : 20)
+    width: parent ? parent.width : 380
+    implicitHeight: body.implicitHeight + (compact ? 20 : 28)
     radius: Theme.radius
-    color: mouse.containsMouse ? Theme.surfaceHi : Theme.surface
-    border.color: rec.tier === "needs" ? Theme.tierNeeds : Theme.border
-    border.width: rec.tier === "needs" ? 2 : 1
+    color: mouse.containsMouse ? Theme.raised : Theme.island
+    border.color: Theme.line
+    Behavior on color { ColorAnimation { duration: 100 } }
 
     MouseArea {
         id: mouse
@@ -25,89 +27,89 @@ Rectangle {
         onClicked: Notifs.activate(card.rec)
     }
 
-    Rectangle { // tier stripe
-        anchors { left: parent.left; top: parent.top; bottom: parent.bottom; margins: 6 }
-        width: 3; radius: 2
-        color: card.tint
-    }
-
-    Column {
-        id: col
+    RowLayout {
+        id: body
         anchors { left: parent.left; right: parent.right; top: parent.top
-                  leftMargin: 16; rightMargin: 28; topMargin: card.compact ? 7 : 10 }
-        spacing: 3
+                  margins: card.compact ? 10 : 14 }
+        spacing: 12
 
-        Row {
-            spacing: 6
-            Text {
-                visible: !card.compact
-                text: card.rec.appName
-                color: Theme.amberDim
-                font { family: Theme.font; pixelSize: 10; weight: Font.DemiBold }
+        Item { // app icon (or first letter)
+            Layout.alignment: Qt.AlignTop
+            Layout.preferredWidth: card.compact ? 24 : 32
+            Layout.preferredHeight: Layout.preferredWidth
+            Image {
+                id: appIcon
+                anchors.fill: parent
+                sourceSize: Qt.size(64, 64)
+                source: card.rec.icon ? Quickshell.iconPath(card.rec.icon, true) : ""
+                visible: status === Image.Ready
             }
-            Text {
-                text: Qt.formatTime(card.rec.time, "HH:mm") + (card.rec.count > 1 ? "  ×" + card.rec.count : "")
-                color: Theme.faint
-                font { family: Theme.font; pixelSize: 10 }
+            Rectangle {
+                anchors.fill: parent
+                visible: !appIcon.visible
+                radius: 8
+                color: Theme.raised
+                Label { anchors.centerIn: parent; text: card.rec.appName.charAt(0).toUpperCase()
+                        font.weight: Font.DemiBold; color: card.needs ? Theme.amber : Theme.fg }
             }
         }
-        Text {
-            width: col.width
-            text: card.rec.summary
-            color: Theme.fg
-            elide: Text.ElideRight
-            font { family: Theme.font; pixelSize: 13; weight: Font.DemiBold }
-        }
-        Text {
-            width: col.width
-            visible: text !== ""
-            text: card.rec.body
-            textFormat: Text.StyledText
-            color: Theme.muted
-            wrapMode: Text.Wrap
-            maximumLineCount: card.compact ? 2 : 4
-            elide: Text.ElideRight
-            font { family: Theme.font; pixelSize: 12 }
-        }
-        Row { // action buttons (e.g. "Reply", "Approve")
-            visible: card.actions.length > 0 && !card.compact
-            spacing: 6
-            topPadding: 4
-            Repeater {
-                model: card.actions
-                delegate: Rectangle {
-                    required property var modelData
-                    width: actText.implicitWidth + 16; height: 22; radius: 6
-                    color: actMouse.containsMouse ? Theme.amberDim : Theme.surfaceHi
-                    Text {
-                        id: actText
-                        anchors.centerIn: parent
-                        text: modelData.text
-                        color: Theme.fg
-                        font { family: Theme.font; pixelSize: 11 }
-                    }
-                    MouseArea {
-                        id: actMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: { modelData.invoke(); Notifs.removePopup(card.rec); }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 3
+
+            RowLayout { // meta line
+                spacing: 6
+                Rectangle { visible: card.needs; Layout.alignment: Qt.AlignVCenter
+                            width: 6; height: 6; radius: 3; color: Theme.amber }
+                Label { text: card.rec.appName; color: card.needs ? Theme.amber : Theme.muted
+                        font.pixelSize: Theme.textSm; font.weight: Font.DemiBold }
+                Label { text: "· " + Qt.formatTime(card.rec.time, "HH:mm") + (card.rec.count > 1 ? " · ×" + card.rec.count : "")
+                        color: Theme.faint; font.pixelSize: Theme.textSm }
+            }
+            Label {
+                Layout.fillWidth: true
+                text: card.rec.summary
+                elide: Text.ElideRight
+                font.pixelSize: card.compact ? Theme.text : Theme.textLg - 1
+                font.weight: Font.DemiBold
+            }
+            Label {
+                Layout.fillWidth: true
+                visible: text !== ""
+                text: card.rec.body
+                textFormat: Text.StyledText
+                color: Theme.muted
+                wrapMode: Text.Wrap
+                maximumLineCount: card.compact ? 2 : 4
+                elide: Text.ElideRight
+            }
+            RowLayout { // actions
+                visible: card.actions.length > 0 && !card.compact
+                Layout.topMargin: 6
+                spacing: 6
+                Repeater {
+                    model: card.actions
+                    delegate: Rectangle {
+                        required property var modelData
+                        implicitWidth: act.implicitWidth + 20; implicitHeight: 26; radius: 13
+                        color: actMouse.containsMouse ? Theme.amber : Theme.raised
+                        Label { id: act; anchors.centerIn: parent; text: modelData.text
+                                color: actMouse.containsMouse ? Theme.base : Theme.fg; font.pixelSize: Theme.textSm }
+                        MouseArea { id: actMouse; anchors.fill: parent; hoverEnabled: true
+                                    onClicked: { modelData.invoke(); Notifs.removePopup(card.rec); } }
                     }
                 }
             }
         }
-    }
 
-    Text { // dismiss
-        anchors { right: parent.right; top: parent.top; margins: 8 }
-        text: ""
-        color: closeMouse.containsMouse ? Theme.fg : Theme.faint
-        font { family: Theme.mono; pixelSize: 11 }
-        MouseArea {
-            id: closeMouse
-            anchors.fill: parent
-            anchors.margins: -4
-            hoverEnabled: true
-            onClicked: Notifs.dismiss(card.rec)
+        Icon { // dismiss
+            Layout.alignment: Qt.AlignTop
+            size: 16
+            text: "close"
+            color: closeMouse.containsMouse ? Theme.fg : Theme.faint
+            MouseArea { id: closeMouse; anchors.fill: parent; anchors.margins: -4; hoverEnabled: true
+                        onClicked: Notifs.dismiss(card.rec) }
         }
     }
 }

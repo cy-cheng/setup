@@ -42,8 +42,14 @@ FILES=(
     .config/quickshell/services/Theme.qml
     .config/quickshell/services/Sys.qml
     .config/quickshell/services/Notifs.qml
-    .config/quickshell/modules/Bar.qml
-    .config/quickshell/modules/Rail.qml
+    .config/quickshell/modules/Frame.qml
+    .config/quickshell/modules/Reserve.qml
+    .config/quickshell/modules/BarContent.qml
+    .config/quickshell/modules/RailContent.qml
+    .config/quickshell/modules/Island.qml
+    .config/quickshell/modules/Icon.qml
+    .config/quickshell/modules/Label.qml
+    .config/quickshell/modules/Ring.qml
     .config/quickshell/modules/Popups.qml
     .config/quickshell/modules/Centre.qml
     .config/quickshell/modules/NotifCard.qml

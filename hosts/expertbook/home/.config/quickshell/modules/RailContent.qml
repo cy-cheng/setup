@@ -1,60 +1,38 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
-import Quickshell.Wayland
 import qs.services
 
-// Attention rail: permanent strip on the right edge. One icon per source that
-// wants you (agent session, app). Badge = unseen count, colour = tier.
-// Click: go to the source · Right-click: dismiss the group · Hover: preview.
-PanelWindow {
+// Contents of the frame's right edge: one tile per source that wants attention.
+// Greyscale tiles; "needs you" gets an amber ring that breathes, counts are small badges.
+Item {
     id: rail
-    required property var modelData
-    screen: modelData
 
-    anchors { top: true; bottom: true; right: true }
-    implicitWidth: Theme.railWidth
-    color: "transparent"
-    WlrLayershell.namespace: "nixie-rail"
-
-    // Only sources with something not yet dismissed; quiet ones only while unseen.
     readonly property var groups: { Notifs.rev; return Notifs.groups().filter(g => g.tier !== "quiet" || g.unseen > 0); }
-
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.bg
-        Rectangle { // hairline on the inner edge
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-            width: 1
-            color: Theme.border
-        }
-    }
 
     Column {
         anchors { top: parent.top; topMargin: Theme.gap; horizontalCenter: parent.horizontalCenter }
-        spacing: 8
+        spacing: Theme.gap
 
         Repeater {
             model: rail.groups
             delegate: Item {
                 id: slot
                 required property var modelData
-                width: 30; height: 30
-                readonly property color tint: Theme["tier" + modelData.tier.charAt(0).toUpperCase() + modelData.tier.slice(1)]
+                readonly property bool needs: modelData.tier === "needs"
+                width: 36; height: 36
 
                 Rectangle {
-                    id: tile
                     anchors.fill: parent
-                    radius: 8
-                    color: mouse.containsMouse ? Theme.surfaceHi : Theme.surface
-                    border.color: slot.tint
-                    border.width: slot.modelData.tier === "needs" ? 2 : 1
-
-                    // "Needs you" breathes gently until handled.
-                    SequentialAnimation on opacity {
-                        running: slot.modelData.tier === "needs"
+                    radius: 12
+                    color: mouse.containsMouse ? Theme.raised : Theme.island
+                    border.color: slot.needs ? Theme.amber : Theme.line
+                    border.width: slot.needs ? 1.5 : 1
+                    SequentialAnimation on border.color {
+                        running: slot.needs
                         loops: Animation.Infinite
-                        NumberAnimation { to: 0.55; duration: 900; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+                        ColorAnimation { to: Theme.amberDim; duration: 900; easing.type: Easing.InOutSine }
+                        ColorAnimation { to: Theme.amber; duration: 900; easing.type: Easing.InOutSine }
                     }
 
                     Image {
@@ -65,27 +43,30 @@ PanelWindow {
                         source: slot.modelData.icon ? Quickshell.iconPath(slot.modelData.icon, true) : ""
                         visible: status === Image.Ready
                     }
-                    Text { // fallback: first letter of the app
+                    Label { // fallback: first letter
                         anchors.centerIn: parent
                         visible: !icon.visible
                         text: slot.modelData.label.charAt(0).toUpperCase()
-                        color: slot.tint
-                        font { family: Theme.font; pixelSize: 14; bold: true }
+                        color: slot.needs ? Theme.amber : Theme.fg
+                        font.pixelSize: Theme.textLg
+                        font.weight: Font.DemiBold
                     }
                 }
 
                 Rectangle { // badge
                     visible: slot.modelData.unseen > 0
                     anchors { right: parent.right; top: parent.top; rightMargin: -4; topMargin: -4 }
-                    width: Math.max(14, badgeText.implicitWidth + 6); height: 14
-                    radius: 7
-                    color: slot.tint
-                    Text {
-                        id: badgeText
+                    width: Math.max(16, badge.implicitWidth + 8); height: 16
+                    radius: 8
+                    color: slot.needs ? Theme.amber : Theme.raised
+                    border.color: slot.needs ? "transparent" : Theme.line
+                    Label {
+                        id: badge
                         anchors.centerIn: parent
                         text: slot.modelData.unseen
-                        color: "#070605"
-                        font { family: Theme.font; pixelSize: 9; bold: true }
+                        color: slot.needs ? Theme.base : Theme.fg
+                        font.pixelSize: 9
+                        font.weight: Font.Bold
                     }
                 }
 
@@ -99,52 +80,53 @@ PanelWindow {
                         : Notifs.activate(slot.modelData.items[0])
                 }
 
-                // Hover preview: latest few messages from this source.
+                // Hover preview, opening to the left of the rail
                 PopupWindow {
                     visible: mouse.containsMouse
                     anchor.item: slot
                     anchor.edges: Edges.Left
                     anchor.gravity: Edges.Left
-                    anchor.margins.left: -8
-                    implicitWidth: 300
-                    implicitHeight: previewCol.implicitHeight + 20
+                    anchor.margins.left: -12
+                    implicitWidth: 320
+                    implicitHeight: preview.implicitHeight + 24
                     color: "transparent"
                     Rectangle {
                         anchors.fill: parent
                         radius: Theme.radius
-                        color: Theme.surface
-                        border.color: Theme.border
-                        Column {
-                            id: previewCol
-                            anchors { fill: parent; margins: 10 }
-                            spacing: 6
-                            Text {
+                        color: Theme.island
+                        border.color: Theme.line
+                        ColumnLayout {
+                            id: preview
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                            spacing: 8
+                            Label {
                                 text: slot.modelData.label
-                                color: Theme.amber
-                                font { family: Theme.font; pixelSize: 11; weight: Font.DemiBold }
+                                color: slot.needs ? Theme.amber : Theme.muted
+                                font.pixelSize: Theme.textSm
+                                font.weight: Font.DemiBold
                             }
                             Repeater {
                                 model: slot.modelData.items.slice(0, 3)
-                                delegate: Column {
+                                delegate: ColumnLayout {
                                     required property var modelData
-                                    width: previewCol.width
-                                    Text {
-                                        width: parent.width
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Label {
+                                        Layout.fillWidth: true
                                         text: modelData.summary + (modelData.count > 1 ? "  ×" + modelData.count : "")
-                                        color: Theme.fg
                                         elide: Text.ElideRight
-                                        font { family: Theme.font; pixelSize: 12; weight: Font.DemiBold }
+                                        font.weight: Font.DemiBold
                                     }
-                                    Text {
-                                        width: parent.width
+                                    Label {
+                                        Layout.fillWidth: true
                                         visible: text !== ""
                                         text: modelData.body
                                         textFormat: Text.StyledText
                                         color: Theme.muted
+                                        font.pixelSize: Theme.textSm
                                         wrapMode: Text.Wrap
                                         maximumLineCount: 2
                                         elide: Text.ElideRight
-                                        font { family: Theme.font; pixelSize: 11 }
                                     }
                                 }
                             }

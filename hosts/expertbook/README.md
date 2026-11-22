@@ -11,6 +11,7 @@ Install scripts run as your normal user unless their header says `sudo`.
 | | `lock-login-setup.sh` | First login setup (tuigreet, fprintd, fingerprint stay-awake rule) |
 | | `fingerprint-sudo.sh` | sudo accepts a fingerprint (password via Ctrl+C) |
 | | `lid-lock.sh` | Closing the lid locks instead of suspending |
+| | `fonts-setup.sh` | Unbounded (UI) + Material Symbols (icons) for the Nixie shell |
 | | `dev-power-setup.sh` | Dev toolchains (uv, Rust, clang, Verilog/EDA) + thermald, power-profile bridge, 80% charge limit (`power/`) |
 | `fixes/` | `display-fix.sh` | Kernel options for the display; `nopsr` is the current setting |
 | | `reboot-fix.sh` | `reboot=efi` for reboots hanging after "Rebooting." |

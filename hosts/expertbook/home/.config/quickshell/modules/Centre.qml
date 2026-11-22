@@ -37,8 +37,8 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         radius: Theme.radius + 4
-        color: Theme.surface
-        border.color: Theme.border
+        color: Theme.island
+        border.color: Theme.line
         focus: true
         Keys.onEscapePressed: Notifs.centreOpen = false
 
@@ -58,8 +58,8 @@ PanelWindow {
                 property bool on
                 signal toggled
                 width: tText.implicitWidth + 18; height: 24; radius: 12
-                color: on ? Theme.amberDim : (tMouse.containsMouse ? Theme.surfaceHi : "transparent")
-                border.color: on ? "transparent" : Theme.border
+                color: on ? Theme.amberDim : (tMouse.containsMouse ? Theme.raised : "transparent")
+                border.color: on ? "transparent" : Theme.line
                 Text { id: tText; anchors.centerIn: parent; text: parent.label
                        color: Theme.fg; font { family: Theme.font; pixelSize: 11 } }
                 MouseArea { id: tMouse; anchors.fill: parent; hoverEnabled: true; onClicked: parent.toggled() }
@@ -108,7 +108,7 @@ PanelWindow {
                                 id: gTitle
                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                 text: (group.folded ? "▸ " : "▾ ") + group.modelData.label
-                                color: Theme["tier" + group.modelData.tier.charAt(0).toUpperCase() + group.modelData.tier.slice(1)]
+                                color: Theme.tierColor(group.modelData.tier)
                                 font { family: Theme.font; pixelSize: 12; weight: Font.DemiBold }
                                 MouseArea {
                                     anchors.fill: parent

@@ -54,4 +54,3 @@ EOF
     hyprctl eval "hl.config({ decoration = { screen_shader = \"$shader\" } })" >/dev/null
 fi
 
-[[ ${1:-} == @(apply|dim|restore) ]] || hyprctl notify -1 800 "rgb(ffac32)" "Brightness ${level}%" >/dev/null 2>&1 || true

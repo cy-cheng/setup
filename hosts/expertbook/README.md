@@ -11,6 +11,7 @@ Install scripts run as your normal user unless their header says `sudo`.
 | | `lock-login-setup.sh` | First login setup (tuigreet, fprintd, fingerprint stay-awake rule) |
 | | `fingerprint-sudo.sh` | sudo accepts a fingerprint (password via Ctrl+C) |
 | | `lid-lock.sh` | Closing the lid locks instead of suspending |
+| | `hibernate-setup.sh` | 32 GB swap file + resume= kernel args, so `systemctl hibernate` works (sleep/s2idle hangs on resume) |
 | | `fcitx-nixie-setup.sh` | Builds the Nixie Fcitx candidate window (7-item row, Down = 5x5 grid, A-Y select) |
 | | `fish-prompt.fish` | Nixie colours for the tide prompt and fish syntax highlighting |
 | | `fonts-setup.sh` | Unbounded (UI) + Material Symbols (icons) for the Nixie shell |

@@ -62,3 +62,8 @@ npm pnpm (or via nvm/mise), ruby, go, julia (juliaup), platformio
 - Notifications/shell: Quickshell. Tiers (Needs you / FYI / Quiet / System), per-app rules,
   attention rail permanently on the RIGHT edge, click → source window (not the arrival workspace).
 - Reminder list: try Zed; projector/monitor config; agent session manager across machines.
+
+## Sleep → hibernate (2026-11-22)
+- s2idle suspend never resumed (log stops at `PM: suspend entry (s2idle)`; hard reboot). BIOS B9406CAA.304 is the latest.
+- Replaced with hibernate: `install/hibernate-setup.sh` (32 GB /swapfile, GRUB resume=/resume_offset=). Verified: `systemctl hibernate` restores the session.
+- hypridle: screen off 2 min on battery / 5.5 min on AC, lock 5 min, hibernate 30 min on battery. Power menu: Hibernate instead of Suspend.

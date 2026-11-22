@@ -386,7 +386,7 @@ hl.bind("SHIFT + Print",       hl.dsp.exec_cmd("hyprshot -m window -z -o ~/Pictu
 hl.bind(mainMod .. " + Print", hl.dsp.exec_cmd("hyprshot -m output -m active -o ~/Pictures/Screenshots"))
 
 -- Lock now (hyprlock: password or fingerprint)
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("loginctl lock-session"))
+hl.bind(mainMod .. " + Delete", hl.dsp.exec_cmd("loginctl lock-session"))   -- lock (away from home row on purpose)
 
 -- Requires playerctl
 hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })

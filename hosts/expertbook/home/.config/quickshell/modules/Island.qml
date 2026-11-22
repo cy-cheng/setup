@@ -10,7 +10,10 @@ Rectangle {
     Layout.alignment: Qt.AlignVCenter
     implicitHeight: Theme.islandH
     implicitWidth: row.implicitWidth + Theme.pad * 2
+    // "Hug" style: islands hang from the top edge of the screen.
     radius: Theme.islandH / 2
+    topLeftRadius: 0
+    topRightRadius: 0
     color: Theme.island
     border.color: Theme.line
     RowLayout {

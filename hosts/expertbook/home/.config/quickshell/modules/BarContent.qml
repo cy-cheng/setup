@@ -36,7 +36,7 @@ Item {
 
     // ── Left: workspaces ────────────────────────────────────────────────
     Island {
-        anchors { left: parent.left; leftMargin: bar.innerLeft; verticalCenter: parent.verticalCenter }
+        anchors { left: parent.left; leftMargin: bar.innerLeft; top: parent.top }
         spacing: 4
         Repeater {
             model: Hyprland.workspaces
@@ -100,7 +100,7 @@ Item {
     Island {
         id: clockIsland
         x: (bar.width - width) / 2          // centred on the screen, so the bar reads symmetric
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.top: parent.top
         Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "ddd d MMM"); color: Theme.muted }
         Label { Layout.alignment: Qt.AlignBaseline; text: Qt.formatDateTime(clock.date, "HH:mm")
                 font.pixelSize: Theme.textLg; font.weight: Font.DemiBold }
@@ -109,7 +109,7 @@ Item {
 
     // ── Right: system tray (only when apps put icons there) ─────────────
     Island {
-        anchors { right: statusIsland.left; rightMargin: Theme.gap; verticalCenter: parent.verticalCenter }
+        anchors { right: statusIsland.left; rightMargin: Theme.gap; top: parent.top }
         visible: SystemTray.items.values.length > 0
         spacing: 10
         Repeater {
@@ -151,7 +151,7 @@ Item {
     // ── Right: status ───────────────────────────────────────────────────
     Island {
         id: statusIsland
-        anchors { right: parent.right; rightMargin: parent.width - bar.innerRight; verticalCenter: parent.verticalCenter }
+        anchors { right: parent.right; rightMargin: parent.width - bar.innerRight; top: parent.top }
         spacing: 12
 
         // Input method: Caps Lock or click toggles

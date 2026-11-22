@@ -12,6 +12,7 @@ Install scripts run as your normal user unless their header says `sudo`.
 | | `fingerprint-sudo.sh` | sudo accepts a fingerprint (password via Ctrl+C) |
 | | `lid-lock.sh` | Closing the lid locks instead of suspending |
 | | `fcitx-nixie-setup.sh` | Builds the Nixie Fcitx candidate window (7-item row, Down = 5x5 grid, A-Y select) |
+| | `fish-prompt.fish` | Nixie colours for the tide prompt and fish syntax highlighting |
 | | `fonts-setup.sh` | Unbounded (UI) + Material Symbols (icons) for the Nixie shell |
 | | `dev-power-setup.sh` | Dev toolchains (uv, Rust, clang, Verilog/EDA) + thermald, power-profile bridge, 80% charge limit (`power/`) |
 | `fixes/` | `display-fix.sh` | Kernel options for the display; `nopsr` is the current setting |

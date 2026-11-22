@@ -11,8 +11,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Development (no Docker) ----------------------------------------------------
 # uv: Python projects/venvs; rustup: Rust; clang/lldb: C/C++ (clangd comes via Neovim/Mason);
-# cmake, valgrind, pnpm; Verilog/EDA: iverilog, yosys, gtkwave
-yay -S --needed uv rustup cmake clang lldb valgrind pnpm iverilog yosys gtkwave
+# cmake, valgrind; Verilog/EDA: iverilog, yosys, gtkwave
+yay -S --needed uv rustup cmake clang lldb valgrind iverilog yosys gtkwave
 rustup default stable
 
 # --- Power ------------------------------------------------------------------------

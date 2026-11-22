@@ -70,8 +70,8 @@ hl.on("hyprland.start", function ()
     hl.exec_cmd("~/.local/bin/brightness apply")
     -- Idle: dim 2.5 min, lock 5 min, screen off 5.5 min, suspend 15 min (hypridle.conf)
     hl.exec_cmd("hypridle")
-    -- Password prompts for privileged actions (fingerprint enroll, etc.)
-    hl.exec_cmd("systemctl --user start hyprpolkitagent")
+    -- Password prompts for privileged actions: the Nixie shell is the polkit agent (PolkitDialog.qml)
+    -- hl.exec_cmd("systemctl --user start hyprpolkitagent")   -- replaced by the shell
     -- Nixie shell: bar, attention rail, notifications (~/.config/quickshell)
     hl.exec_cmd("qs -d -n")
     -- Clipboard history for the Super+V picker

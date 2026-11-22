@@ -9,7 +9,7 @@ Install scripts run as your normal user unless their header says `sudo`.
 | | `install-apps.sh` | Everyday apps (Firefox, Chrome, Discord, Slack, Zoom, …) + Wayland flags |
 | | `greeter-setup.sh` | Graphical login: greetd + ReGreet in a minimal Hyprland (`greeter/`) |
 | | `lock-login-setup.sh` | First login setup (tuigreet, fprintd, fingerprint stay-awake rule) |
-| | `fingerprint-sudo.sh` | sudo accepts a fingerprint (password via Ctrl+C) |
+| | `fingerprint-sudo.sh` | sudo and polkit popups accept a fingerprint (password as fallback) |
 | | `lid-lock.sh` | Closing the lid locks instead of suspending |
 | | `hibernate-setup.sh` | 32 GB swap file + resume= kernel args, so `systemctl hibernate` works (sleep/s2idle hangs on resume) |
 | | `fcitx-nixie-setup.sh` | Builds the Nixie Fcitx candidate window (7-item row, Down = 5x5 grid, A-Y select) |
@@ -45,6 +45,7 @@ Quickshell 0.3, started by Hyprland (`qs -d -n`); it also owns desktop notificat
 | `services/Theme.qml` | Colours, fonts (Unbounded, Material Symbols), sizes |
 | `services/Sys.qml` | Power profile (+ power saver on battery), input method, CPU, memory, brightness, keep-awake |
 | `services/Notifs.qml` | Notification server: tiers, per-app rules, history, focus mode |
+| `services/Auth.qml` | Polkit agent: the shell answers authentication requests (replaces hyprpolkitagent) |
 | `services/Vpn.qml` | NetworkManager VPN connections (nmcli, refreshed on `nmcli monitor` events) |
 | `services/Panels.qml` | Which drop-down is open (Wi-Fi, Bluetooth, launcher, clipboard, power, dashboard) |
 | `modules/Background.qml` + `TubeGlow.qml` | Nixie divergence-meter wallpaper |
@@ -54,6 +55,7 @@ Quickshell 0.3, started by Hyprland (`qs -d -n`); it also owns desktop notificat
 | `modules/Popups.qml`, `Centre.qml`, `NotifCard.qml` | Notification popups and the centre (slides in from the right, Super+N) |
 | `modules/Dashboard.qml` + `DashGauge.qml`, `DashToggle.qml` | Drawer under the clock (click it or Super+A): media, gauges, quick toggles |
 | `modules/Launcher.qml`, `Clipboard.qml` | Super+R apps / calculator / commands; Super+V clipboard history |
+| `modules/PolkitDialog.qml` | Authentication dialog: fingerprint first, password field as fallback |
 | `modules/WifiPanel.qml`, `BluetoothPanel.qml`, `PowerMenu.qml`, `Osd.qml` | Wi-Fi + VPN panel, Bluetooth panel, power menu, volume/brightness OSD |
 
 IPC: `qs ipc call <target> <fn>` with `panels toggle <name>`, `notifs toggle|focus|clear`,

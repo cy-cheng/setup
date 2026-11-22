@@ -47,6 +47,7 @@ FILES=(
     .config/quickshell/shell.qml
     .config/quickshell/services/Theme.qml
     .config/quickshell/services/Vpn.qml
+    .config/quickshell/services/Auth.qml
     .config/quickshell/services/Sys.qml
     .config/quickshell/services/Notifs.qml
     .config/quickshell/services/Panels.qml
@@ -71,6 +72,7 @@ FILES=(
     .config/quickshell/modules/DashGauge.qml
     .config/quickshell/modules/DashToggle.qml
     .config/quickshell/modules/PowerMenu.qml
+    .config/quickshell/modules/PolkitDialog.qml
     .config/quickshell/modules/Osd.qml
     .config/quickshell/modules/BluetoothPanel.qml
     .config/quickshell/modules/Popups.qml

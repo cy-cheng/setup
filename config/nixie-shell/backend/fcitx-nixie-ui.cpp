@@ -1,9 +1,12 @@
+#include <fcitx-utils/event.h>
+#include <cctype>
 #include <fcitx/addonfactory.h>
 #include <fcitx/addoninstance.h>
 #include <fcitx/addonmanager.h>
 #include <fcitx/candidatelist.h>
 #include <fcitx/event.h>
 #include <fcitx/inputcontext.h>
+#include <fcitx/inputmethodentry.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/userinterface.h>
@@ -70,6 +73,26 @@ public:
             fcitx::EventType::InputContextKeyEvent,
             fcitx::EventWatcherPhase::PreInputMethod,
             [this](fcitx::Event &event) { handleKey(static_cast<fcitx::KeyEvent &>(event)); });
+        // Show the "input method" label at the text cursor on every user switch, including
+        // ones that come from outside Fcitx (Caps Lock is bound in Hyprland to
+        // `fcitx5-remote -t`, which doesn't go through Fcitx's own trigger-key path).
+        switchWatcher_ = instance_->watchEvent(
+            fcitx::EventType::InputContextSwitchInputMethod,
+            fcitx::EventWatcherPhase::PostInputMethod,
+            [this](fcitx::Event &event) {
+                auto &e = static_cast<fcitx::InputContextSwitchInputMethodEvent &>(event);
+                if (e.reason() == fcitx::InputMethodSwitchedReason::CapabilityChanged) return;
+                auto *ic = e.inputContext();
+                if (!ic) return;
+                // Defer one tick: the new engine's activate() resets the panel right after
+                // this event, which would wipe the label.
+                infoRef_ = ic->watch();
+                infoDefer_ = instance_->eventLoop().addDeferEvent([this](fcitx::EventSource *) {
+                    showSwitchLabel();
+                    infoDefer_.reset();
+                    return true;
+                });
+            });
     }
 
     bool available() override { return true; }
@@ -85,6 +108,40 @@ public:
     }
 
 private:
+    // Short label for the current input method ("注", "EN", …), shown at the cursor for
+    // ~1.2 s after a switch, then cleared if nothing else replaced it.
+    void showSwitchLabel() {
+        auto *ic = infoRef_.get();
+        if (!ic) return;
+        const auto *entry = instance_->inputMethodEntry(ic);
+        if (!entry) return;
+        // "ㄓ  Rime", "EN  English (US)": short label first, then the full name.
+        std::string shortLabel = entry->label().empty() ? entry->name() : entry->label();
+        if (entry->uniqueName().rfind("keyboard-", 0) == 0)
+            for (auto &c : shortLabel) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        std::string name = entry->name();
+        if (name.rfind("Keyboard - ", 0) == 0) name = name.substr(11);   // "Keyboard - English (US)" → "English (US)"
+        const std::string label = shortLabel == name ? shortLabel : shortLabel + "  " + name;
+        shownLabel_ = label;
+        auto &panel = ic->inputPanel();
+        if (panel.candidateList() || !panel.preedit().empty()) return;   // already typing: don't interrupt
+        panel.setAuxUp(fcitx::Text(label));
+        ic->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel, true);
+        infoHide_ = instance_->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC, fcitx::now(CLOCK_MONOTONIC) + 1200000, 0,
+            [this](fcitx::EventSourceTime *, uint64_t) {
+                if (auto *ic2 = infoRef_.get()) {
+                    auto &p2 = ic2->inputPanel();
+                    if (p2.auxUp().toString() == shownLabel_ && !p2.candidateList() && p2.preedit().empty()) {
+                        p2.setAuxUp(fcitx::Text());
+                        ic2->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel, true);
+                    }
+                }
+                infoHide_.reset();
+                return true;
+            });
+    }
+
     void publish(fcitx::InputContext *ic) {
         if (!ic) {
             nativePopup_->hide();
@@ -258,6 +315,11 @@ private:
     int page_ = 1;
     std::unique_ptr<NativeCandidatePopup> nativePopup_;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> keyWatcher_;
+    std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> switchWatcher_;
+    fcitx::TrackableObjectReference<fcitx::InputContext> infoRef_;
+    std::unique_ptr<fcitx::EventSource> infoDefer_;
+    std::unique_ptr<fcitx::EventSourceTime> infoHide_;
+    std::string shownLabel_;
 };
 
 class NixieUIFactory final : public fcitx::AddonFactory {

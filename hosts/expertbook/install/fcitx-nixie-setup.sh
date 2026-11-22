@@ -10,5 +10,5 @@ c++ -std=c++20 -O3 -s -shared -fPIC "$src/backend/fcitx-nixie-ui.cpp" "$src/back
 c++ -std=c++20 -O3 -s -shared -fPIC "$src/backend/fcitx-nixie-addon.cpp" \
     -o "$lib/nixiestatus.so" $(pkg-config --cflags --libs Fcitx5Core)
 install -m644 "$src/fcitx/nixieui.conf" "$src/fcitx/nixiestatus.conf" "$addon/"
-"$HOME/.local/bin/start-fcitx"
+"$HOME/.local/bin/start-fcitx" >/dev/null 2>&1   # fcitx5 -d keeps the pipe open otherwise
 echo "Fcitx restarted with the Nixie candidate window."

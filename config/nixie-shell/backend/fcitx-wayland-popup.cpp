@@ -334,9 +334,49 @@ class NativeCandidatePopup::Impl {
         return result;
     }
 
+    // Just a line of text (input-method label after a switch, or preedit with no candidates):
+    // a small pill instead of the full candidate window.
+    bool drawPill(const std::string& text, int scale) {
+        cairo_surface_t* measureSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
+        cairo_t* measureContext = cairo_create(measureSurface);
+        const int textWidth = measure(measureContext, text, 15.0, true).width;
+        cairo_destroy(measureContext);
+        cairo_surface_destroy(measureSurface);
+        const int logicalHeight = 34;
+        const int logicalWidth = std::max(logicalHeight, textWidth + 28);
+        const int pixelWidth = logicalWidth * scale, pixelHeight = logicalHeight * scale;
+        auto* buffer = newBuffer(pixelWidth, pixelHeight);
+        if (!buffer) return false;
+        auto* image = cairo_image_surface_create_for_data(static_cast<unsigned char*>(buffer->data),
+                                                          CAIRO_FORMAT_ARGB32, pixelWidth, pixelHeight, pixelWidth * 4);
+        auto* cr = cairo_create(image);
+        cairo_scale(cr, scale, scale);
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        color(cr, 0, 0, 0, 0);
+        cairo_paint(cr);
+        cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+        roundedRect(cr, 0.5, 0.5, logicalWidth - 1.0, logicalHeight - 1.0, (logicalHeight - 1.0) / 2);
+        color(cr, 0.071, 0.063, 0.051, 0.98);
+        cairo_fill_preserve(cr);
+        color(cr, 1.0, 0.62, 0.13, 0.85);
+        cairo_set_line_width(cr, 1.0);
+        cairo_stroke(cr);
+        drawText(cr, text, 14, 7, logicalWidth - 28, 15.0, true, false);
+        cairo_surface_flush(image);
+        cairo_destroy(cr);
+        cairo_surface_destroy(image);
+        wl_surface_set_buffer_scale(surface_, scale);
+        wl_surface_attach(surface_, buffer->buffer, 0, 0);
+        wl_surface_damage_buffer(surface_, 0, 0, pixelWidth, pixelHeight);
+        wl_surface_commit(surface_);
+        wl_display_flush(display_);
+        return true;
+    }
+
     bool draw(fcitx::InputContext* ic, const std::vector<Candidate>& items, const std::string& preedit, bool expanded,
               int page, int cursor, bool hasPrev, bool hasNext) {
         const int scale = std::clamp(static_cast<int>(std::ceil(std::max(1.0, ic->scaleFactor()))), 1, 3);
+        if (items.empty()) return drawPill(preedit, scale);
         cairo_surface_t* measureSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
         cairo_t* measureContext = cairo_create(measureSurface);
 

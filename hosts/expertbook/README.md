@@ -44,6 +44,7 @@ Quickshell 0.3, started by Hyprland (`qs -d -n`); it also owns desktop notificat
 | `services/Theme.qml` | Colours, fonts (Unbounded, Material Symbols), sizes |
 | `services/Sys.qml` | Power profile (+ power saver on battery), input method, CPU, memory, brightness, keep-awake |
 | `services/Notifs.qml` | Notification server: tiers, per-app rules, history, focus mode |
+| `services/Vpn.qml` | NetworkManager VPN connections (nmcli, refreshed on `nmcli monitor` events) |
 | `services/Panels.qml` | Which drop-down is open (Wi-Fi, Bluetooth, launcher, clipboard, power, dashboard) |
 | `modules/Background.qml` + `TubeGlow.qml` | Nixie divergence-meter wallpaper |
 | `modules/Reserve.qml`, `Frame.qml` | Screen frame and the space it reserves |
@@ -52,10 +53,10 @@ Quickshell 0.3, started by Hyprland (`qs -d -n`); it also owns desktop notificat
 | `modules/Popups.qml`, `Centre.qml`, `NotifCard.qml` | Notification popups and the centre (slides in from the right, Super+N) |
 | `modules/Dashboard.qml` + `DashGauge.qml`, `DashToggle.qml` | Drawer under the clock (click it or Super+A): media, gauges, quick toggles |
 | `modules/Launcher.qml`, `Clipboard.qml` | Super+R apps / calculator / commands; Super+V clipboard history |
-| `modules/WifiPanel.qml`, `BluetoothPanel.qml`, `PowerMenu.qml`, `Osd.qml` | Panels, power menu, volume/brightness OSD |
+| `modules/WifiPanel.qml`, `BluetoothPanel.qml`, `PowerMenu.qml`, `Osd.qml` | Wi-Fi + VPN panel, Bluetooth panel, power menu, volume/brightness OSD |
 
 IPC: `qs ipc call <target> <fn>` with `panels toggle <name>`, `notifs toggle|focus|clear`,
-`dock toggle`, `power cycle|set <profile>`, `awake toggle`.
+`dock toggle`, `power cycle|set <profile>`, `awake toggle`, `vpn list|toggle <name>`.
 
 Not stored here on purpose: SSH config, Rime user dictionaries, images, fonts and
 anything with credentials. Neovim lives in its own repo (`cy-cheng/nvim`, branch `agent`).

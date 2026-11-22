@@ -166,15 +166,18 @@ Item {
 
         Icon {
             readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
-            text: online ? "wifi" : "wifi_off"
-            color: online ? Theme.fg : Theme.red
+            // A VPN that is up replaces the Wi-Fi glyph with a lock, in amber.
+            text: Vpn.anyActive ? "vpn_lock" : online ? "wifi" : "wifi_off"
+            color: Vpn.anyActive ? Theme.amber : online ? Theme.fg : Theme.red
             MouseArea { anchors.fill: parent; onClicked: Panels.toggle("wifi") }
             Tip {
                 text: {
+                    let t = Networking.wifiEnabled ? "Wi-Fi · not connected" : "Wi-Fi off";
                     for (const d of Networking.devices.values)
                         if (d.type === DeviceType.Wifi)
-                            for (const n of d.networks.values) if (n.connected) return "Wi-Fi · " + n.name;
-                    return Networking.wifiEnabled ? "Wi-Fi · not connected" : "Wi-Fi off";
+                            for (const n of d.networks.values) if (n.connected) t = "Wi-Fi · " + n.name;
+                    if (Vpn.anyActive) t += " · VPN " + Vpn.activeOnes.map(c => c.name).join(", ");
+                    return t;
                 }
             }
         }

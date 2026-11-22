@@ -32,6 +32,7 @@ PanelWindow {
     }
     Connections {
         target: osd.audio
+        ignoreUnknownSignals: true          // audio is null until the sink is bound
         function onVolumeChanged() { osd.show("volume"); }
         function onMutedChanged() { osd.show("volume"); }
     }

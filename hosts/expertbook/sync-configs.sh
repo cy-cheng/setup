@@ -43,6 +43,7 @@ FILES=(
     .local/share/dbus-1/services/org.freedesktop.Notifications.service
     .config/quickshell/shell.qml
     .config/quickshell/services/Theme.qml
+    .config/quickshell/services/Vpn.qml
     .config/quickshell/services/Sys.qml
     .config/quickshell/services/Notifs.qml
     .config/quickshell/services/Panels.qml

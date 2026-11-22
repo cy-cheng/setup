@@ -6,7 +6,7 @@ import Quickshell.Hyprland
 import Quickshell.Networking
 import qs.services
 
-// Wi-Fi panel: drops down under the status island. Lists networks (connected
+// Wi-Fi panel (with VPN toggles): drops down under the status island. Lists networks (connected
 // first, then by signal); click to connect, password field for new secured
 // networks, disconnect/forget for the current one. Esc or click outside closes.
 PanelWindow {
@@ -95,7 +95,7 @@ PanelWindow {
                 spacing: 4
                 visible: Networking.wifiEnabled
                 Repeater {
-                    model: panel.networks.slice(0, 10)
+                    model: panel.networks.slice(0, 6)
                     delegate: Rectangle {
                         id: row
                         required property var modelData
@@ -182,6 +182,78 @@ PanelWindow {
                         }
                     }
                 }
+            }
+
+            // ── VPN ──
+            Rectangle { visible: Vpn.connections.length > 0; Layout.fillWidth: true; implicitHeight: 1; color: Theme.line }
+            Label {
+                visible: Vpn.connections.length > 0
+                text: "VPN"
+                font.pixelSize: Theme.textLg
+                font.weight: Font.DemiBold
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+                visible: Vpn.connections.length > 0
+                Repeater {
+                    model: Vpn.connections
+                    delegate: Rectangle {
+                        id: vrow
+                        required property var modelData
+                        readonly property string busy: Vpn.pending[modelData.uuid] ?? ""
+                        readonly property bool on: busy === "up" || (modelData.active && busy !== "down")
+                        Layout.fillWidth: true
+                        implicitHeight: 40
+                        radius: 10
+                        color: vMouse.containsMouse ? Theme.raised : "transparent"
+                        MouseArea {
+                            id: vMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: if (vrow.busy === "") Vpn.toggle(vrow.modelData)
+                        }
+                        RowLayout {
+                            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                            spacing: 10
+                            Icon { text: vrow.modelData.active ? "vpn_lock" : "vpn_key"; color: vrow.modelData.active ? Theme.amber : Theme.fg }
+                            Label {
+                                Layout.fillWidth: true
+                                text: vrow.modelData.name
+                                elide: Text.ElideRight
+                                font.weight: vrow.modelData.active ? Font.DemiBold : Font.Normal
+                            }
+                            Label {
+                                visible: text !== ""
+                                text: vrow.busy === "up" ? "Connecting…" : vrow.busy === "down" ? "Disconnecting…"
+                                    : vrow.modelData.active ? "Connected" : ""
+                                color: Theme.amber
+                                font.pixelSize: Theme.textSm
+                            }
+                            Rectangle { // switch
+                                implicitWidth: 34; implicitHeight: 20; radius: 10
+                                color: vrow.on ? Theme.amber : Theme.raised
+                                border.color: vrow.on ? "transparent" : Theme.line
+                                opacity: vrow.busy !== "" ? 0.6 : 1
+                                Rectangle {
+                                    width: 14; height: 14; radius: 7
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: vrow.on ? parent.width - width - 3 : 3
+                                    color: vrow.on ? Theme.base : Theme.muted
+                                    Behavior on x { NumberAnimation { duration: 120 } }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Label {
+                visible: Vpn.lastError !== ""
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: Vpn.lastError
+                color: Theme.red
+                font.pixelSize: Theme.textSm
             }
 
             Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.line }

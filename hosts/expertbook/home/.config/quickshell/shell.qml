@@ -16,4 +16,5 @@ ShellRoot {
     Variants { model: Quickshell.screens; delegate: Launcher {} }
     Variants { model: Quickshell.screens; delegate: DockWindow {} }
     Variants { model: Quickshell.screens; delegate: PowerMenu {} }
+    Variants { model: Quickshell.screens; delegate: Osd {} }
 }

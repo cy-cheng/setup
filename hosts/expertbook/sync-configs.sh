@@ -62,6 +62,7 @@ FILES=(
     .config/quickshell/modules/WifiPanel.qml
     .config/quickshell/modules/Launcher.qml
     .config/quickshell/modules/PowerMenu.qml
+    .config/quickshell/modules/Osd.qml
     .config/quickshell/modules/BluetoothPanel.qml
     .config/quickshell/modules/Popups.qml
     .config/quickshell/modules/Centre.qml

@@ -1,138 +1,120 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
+import Quickshell.Hyprland
 import qs.services
 
-// Contents of the frame's right edge: one tile per source that wants attention.
-// Greyscale tiles; "needs you" gets an amber ring that breathes, counts are small badges.
+// Right edge of the frame: a dock of pinned + running apps.
+//   dots on the left = open windows (amber = focused app)
+//   badge = unread notifications from that app; amber pulsing outline = needs you
+//   click: focus (again: next window) or launch · middle: new window · right: clear its notifications
+// Notifications from things that aren't apps (scripts, agents) get tiles at the bottom.
 Item {
-    id: rail
+    id: dock
 
-    readonly property var groups: { Notifs.rev; return Notifs.groups().filter(g => g.tier !== "quiet" || g.unseen > 0); }
+    // ── Pinned apps (~/.local/state/nixie-dock.json → {"pinned": [...desktop ids]}) ──
+    property var pinned: ["kitty", "google-chrome", "discord", "slack", "obsidian", "thunar"]
+    FileView {
+        path: Quickshell.env("HOME") + "/.local/state/nixie-dock.json"
+        onLoaded: { try { const p = JSON.parse(text()).pinned; if (Array.isArray(p)) dock.pinned = p; } catch (e) {} }
+    }
+
+    // Window → desktop entry id
+    function entryIdFor(t) {
+        const app = t.wayland?.appId || t.lastIpcObject?.class || "";
+        const e = app ? DesktopEntries.heuristicLookup(app) : null;
+        return e?.id ?? app;
+    }
+    function addr(t) { const a = String(t.address); return a.startsWith("0x") ? a : "0x" + a; }
+
+    readonly property var windowsById: {
+        const m = {};
+        for (const t of Hyprland.toplevels.values) {
+            const id = entryIdFor(t);
+            if (!id) continue;
+            (m[id] = m[id] || []).push(t);
+        }
+        return m;
+    }
+    readonly property string activeId: Hyprland.activeToplevel ? entryIdFor(Hyprland.activeToplevel) : ""
+
+    // Notification groups, matched to apps by desktop id or name.
+    readonly property var groups: { Notifs.rev; return Notifs.groups(); }
+    function groupFor(e) {
+        const keys = [e.id, e.name, e.startupClass].filter(k => k).map(k => String(k).toLowerCase());
+        return groups.find(g => keys.includes(g.key) || keys.includes(g.label.toLowerCase())) ?? null;
+    }
+
+    readonly property var apps: {
+        const out = [], seen = {};
+        const push = (id, pinnedFlag) => {
+            if (seen[id]) return;
+            const e = DesktopEntries.byId(id) ?? DesktopEntries.heuristicLookup(id);
+            if (!e) return;
+            seen[id] = seen[e.id] = true;
+            out.push({ id: e.id, entry: e, pinned: pinnedFlag });
+        };
+        for (const id of pinned) push(id, true);
+        for (const id of Object.keys(windowsById)) push(id, false);
+        return out;
+    }
+    readonly property var strayGroups: {
+        const matched = apps.map(a => groupFor(a.entry)).filter(g => g).map(g => g.key);
+        return groups.filter(g => !matched.includes(g.key) && (g.tier !== "quiet" || g.unseen > 0));
+    }
+
+    // Click: focus the app's window, or the next one if it's already focused; launch if none.
+    property var cycleIndex: ({})
+    function activate(app) {
+        const wins = windowsById[app.id] || [];
+        if (wins.length === 0) { app.entry.execute(); return; }
+        let i = 0;
+        if (activeId === app.id) i = ((cycleIndex[app.id] ?? 0) + 1) % wins.length;
+        const c = Object.assign({}, cycleIndex); c[app.id] = i; cycleIndex = c;
+        Hyprland.dispatch('hl.dsp.focus({ window = "address:' + addr(wins[i]) + '" })');
+        const g = groupFor(app.entry);
+        if (g) Notifs.markSeen(g.key);
+    }
 
     Column {
-        anchors { top: parent.top; topMargin: Theme.gap; horizontalCenter: parent.horizontalCenter }
-        spacing: Theme.gap
+        anchors { top: parent.top; topMargin: Theme.gap; horizontalCenter: parent.horizontalCenter; horizontalCenterOffset: 2 }
+        spacing: 6
 
-        Repeater {
-            model: rail.groups
-            delegate: Item {
-                id: slot
+        Repeater { // apps
+            model: dock.apps
+            delegate: DockTile {
                 required property var modelData
-                readonly property bool needs: modelData.tier === "needs"
-                width: 36; height: 36
+                readonly property var app: modelData
+                iconName: app.entry.icon
+                fallback: app.entry.name
+                group: dock.groupFor(app.entry)
+                windows: (dock.windowsById[app.id] || []).length
+                focused: dock.activeId === app.id
+                tip: app.entry.name
+                onLeftClicked: dock.activate(app)
+                onMiddleClicked: app.entry.execute()
+                onRightClicked: if (group) Notifs.dismissGroup(group.key)
+            }
+        }
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 12
-                    color: mouse.containsMouse ? Theme.raised : Theme.island
-                    border.color: slot.needs ? Theme.amber : Theme.line
-                    border.width: slot.needs ? 1.5 : 1
-                    SequentialAnimation on border.color {
-                        running: slot.needs
-                        loops: Animation.Infinite
-                        ColorAnimation { to: Theme.amberDim; duration: 900; easing.type: Easing.InOutSine }
-                        ColorAnimation { to: Theme.amber; duration: 900; easing.type: Easing.InOutSine }
-                    }
+        Rectangle { // divider before non-app attention tiles
+            visible: dock.strayGroups.length > 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 20; height: 1; color: Theme.line
+        }
 
-                    Image {
-                        id: icon
-                        anchors.centerIn: parent
-                        width: 20; height: 20
-                        sourceSize: Qt.size(40, 40)
-                        source: slot.modelData.icon ? Quickshell.iconPath(slot.modelData.icon, true) : ""
-                        visible: status === Image.Ready
-                    }
-                    Label { // fallback: first letter
-                        anchors.centerIn: parent
-                        visible: !icon.visible
-                        text: slot.modelData.label.charAt(0).toUpperCase()
-                        color: slot.needs ? Theme.amber : Theme.fg
-                        font.pixelSize: Theme.textLg
-                        font.weight: Font.DemiBold
-                    }
-                }
-
-                Rectangle { // badge
-                    visible: slot.modelData.unseen > 0
-                    anchors { right: parent.right; top: parent.top; rightMargin: -4; topMargin: -4 }
-                    width: Math.max(16, badge.implicitWidth + 8); height: 16
-                    radius: 8
-                    color: slot.needs ? Theme.amber : Theme.raised
-                    border.color: slot.needs ? "transparent" : Theme.line
-                    Label {
-                        id: badge
-                        anchors.centerIn: parent
-                        text: slot.modelData.unseen
-                        color: slot.needs ? Theme.base : Theme.fg
-                        font.pixelSize: 9
-                        font.weight: Font.Bold
-                    }
-                }
-
-                MouseArea {
-                    id: mouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    onClicked: m => m.button === Qt.RightButton
-                        ? Notifs.dismissGroup(slot.modelData.key)
-                        : Notifs.activate(slot.modelData.items[0])
-                }
-
-                // Hover preview, opening to the left of the rail
-                PopupWindow {
-                    visible: mouse.containsMouse
-                    anchor.item: slot
-                    anchor.edges: Edges.Left
-                    anchor.gravity: Edges.Left
-                    anchor.margins.left: -12
-                    implicitWidth: 320
-                    implicitHeight: preview.implicitHeight + 24
-                    color: "transparent"
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Theme.radius
-                        color: Theme.glass
-                        border.color: Theme.line
-                        ColumnLayout {
-                            id: preview
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                            spacing: 8
-                            Label {
-                                text: slot.modelData.label
-                                color: slot.needs ? Theme.amber : Theme.muted
-                                font.pixelSize: Theme.textSm
-                                font.weight: Font.DemiBold
-                            }
-                            Repeater {
-                                model: slot.modelData.items.slice(0, 3)
-                                delegate: ColumnLayout {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    spacing: 2
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: modelData.summary + (modelData.count > 1 ? "  ×" + modelData.count : "")
-                                        elide: Text.ElideRight
-                                        font.weight: Font.DemiBold
-                                    }
-                                    Label {
-                                        Layout.fillWidth: true
-                                        visible: text !== ""
-                                        text: modelData.body
-                                        textFormat: Text.StyledText
-                                        color: Theme.muted
-                                        font.pixelSize: Theme.textSm
-                                        wrapMode: Text.Wrap
-                                        maximumLineCount: 2
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        Repeater { // notifications from non-apps (scripts, agents)
+            model: dock.strayGroups
+            delegate: DockTile {
+                required property var modelData
+                iconName: modelData.icon
+                fallback: modelData.label
+                group: modelData
+                tip: modelData.label
+                onLeftClicked: Notifs.activate(modelData.items[0])
+                onMiddleClicked: Notifs.activate(modelData.items[0])
+                onRightClicked: Notifs.dismissGroup(modelData.key)
             }
         }
     }

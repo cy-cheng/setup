@@ -50,6 +50,8 @@ FILES=(
     .config/quickshell/modules/Reserve.qml
     .config/quickshell/modules/BarContent.qml
     .config/quickshell/modules/RailContent.qml
+    .config/quickshell/modules/DockTile.qml
+    .local/state/nixie-dock.json
     .config/quickshell/modules/Island.qml
     .config/quickshell/modules/Icon.qml
     .config/quickshell/modules/Label.qml

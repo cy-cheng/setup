@@ -6,7 +6,7 @@ import Quickshell.Hyprland
 import qs.services
 
 // Slide-in dock on the right edge.
-//   Rest the pointer on the very right edge for ~2 s → the dock slides in;
+//   Rest the pointer on the very right edge for ~0.7 s → the dock slides in;
 //   move away → it slides out. Super+D (qs ipc call dock toggle) toggles it.
 //   While hidden, a short amber line on the edge means something is unread / needs you.
 Scope {
@@ -14,7 +14,7 @@ Scope {
     required property var modelData
 
     property bool revealed: false
-    readonly property int revealDelay: 2000      // ms the pointer must rest on the edge
+    readonly property int revealDelay: 700       // ms the pointer must rest on the edge
     readonly property bool attention: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier !== "quiet"); }
     readonly property bool urgent: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier === "needs"); }
 

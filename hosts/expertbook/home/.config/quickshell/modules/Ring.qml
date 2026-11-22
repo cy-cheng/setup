@@ -12,6 +12,7 @@ Item {
     property int size: 26
     property real stroke: 2.5
     property string tip             // shown on hover
+    property bool tipInPanel: false
     signal clicked
     signal scrolled(bool up)
 
@@ -49,6 +50,6 @@ Item {
         onClicked: ring.clicked()
         onWheel: w => ring.scrolled(w.angleDelta.y > 0)
     }
-    Tip { text: ring.tip }
+    Tip { text: ring.tip; inPanel: ring.tipInPanel }
 
 }

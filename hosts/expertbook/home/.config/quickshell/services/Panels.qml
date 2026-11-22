@@ -15,5 +15,6 @@ Singleton {
         target: "panels"
         function toggle(name: string): void { root.toggle(name); }
         function close(): void { root.close(); }
+        function state(): string { return root.open; }
     }
 }

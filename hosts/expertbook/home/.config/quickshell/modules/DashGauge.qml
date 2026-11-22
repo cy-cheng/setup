@@ -28,6 +28,7 @@ ColumnLayout {
         tint: g.tint
         icon: ""
         tip: g.tip
+        tipInPanel: true
         onClicked: g.clicked()
         onScrolled: up => g.scrolled(up)
         Label {

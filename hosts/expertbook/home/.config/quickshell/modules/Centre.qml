@@ -37,7 +37,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         radius: Theme.radius + 4
-        color: Theme.glass
+        color: Theme.notif          // same see-through glass as the cards
         border.color: Theme.line
         focus: true
         Keys.onEscapePressed: Notifs.centreOpen = false

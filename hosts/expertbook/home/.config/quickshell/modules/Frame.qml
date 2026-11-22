@@ -6,7 +6,7 @@ import Quickshell.Hyprland
 import qs.services
 
 // The screen frame (Caelestia-style): one continuous border around the screen.
-// Top edge = bar, right edge = attention rail, thin left/bottom edges, rounded
+// Top edge = bar, thin left/right/bottom edges (the dock slides in on the right), rounded
 // inner corners. Only the frame strips take input; the inside clicks through.
 PanelWindow {
     id: frame
@@ -60,15 +60,6 @@ PanelWindow {
         innerRight: frame.innerX + frame.innerW - 6
     }
 
-    RailContent {
-        id: right
-        x: frame.width - Theme.railW; y: Theme.barH
-        width: Theme.railW; height: frame.height - Theme.barH
-    }
-
-    // Input only on the top and right strips.
-    mask: Region {
-        item: top
-        Region { item: right }
-    }
+    // Input only on the top strip.
+    mask: Region { item: top }
 }

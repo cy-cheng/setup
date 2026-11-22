@@ -51,6 +51,7 @@ FILES=(
     .config/quickshell/modules/BarContent.qml
     .config/quickshell/modules/RailContent.qml
     .config/quickshell/modules/DockTile.qml
+    .config/quickshell/modules/DockWindow.qml
     .local/state/nixie-dock.json
     .config/quickshell/modules/Island.qml
     .config/quickshell/modules/Icon.qml

@@ -362,6 +362,9 @@ hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("~/.local/bin/brightness down"),
 -- Caps Lock (keycode 66, its normal function disabled above): English <-> 注音/last input method
 hl.bind("code:66", hl.dsp.exec_cmd("fcitx5-remote -t"))
 
+-- Dock: Super+D slides it in/out (or rest the pointer on the right edge ~2 s)
+hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call dock toggle"))
+
 -- Notifications: Super+N centre, Super+Shift+N focus mode (only "needs you" gets through)
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))
 hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifs focus"))

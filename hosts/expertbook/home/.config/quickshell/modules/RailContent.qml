@@ -12,9 +12,11 @@ import qs.services
 // Notifications from things that aren't apps (scripts, agents) get tiles at the bottom.
 Item {
     id: dock
+    implicitWidth: 56
+    implicitHeight: col.implicitHeight + Theme.gap * 2
 
     // ── Pinned apps (~/.local/state/nixie-dock.json → {"pinned": [...desktop ids]}) ──
-    property var pinned: ["kitty", "google-chrome", "discord", "slack", "obsidian", "thunar"]
+    property var pinned: ["kitty", "google-chrome", "discord", "slack", "thunar"]
     FileView {
         path: Quickshell.env("HOME") + "/.local/state/nixie-dock.json"
         onLoaded: { try { const p = JSON.parse(text()).pinned; if (Array.isArray(p)) dock.pinned = p; } catch (e) {} }
@@ -78,6 +80,7 @@ Item {
     }
 
     Column {
+        id: col
         anchors { top: parent.top; topMargin: Theme.gap; horizontalCenter: parent.horizontalCenter; horizontalCenterOffset: 2 }
         spacing: 6
 

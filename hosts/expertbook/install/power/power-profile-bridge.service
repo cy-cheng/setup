@@ -1,0 +1,12 @@
+[Unit]
+Description=Map power profiles onto ASUS + SoC platform profiles
+After=power-profiles-daemon.service
+Requires=power-profiles-daemon.service
+
+[Service]
+ExecStart=/usr/local/libexec/power-profile-bridge
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

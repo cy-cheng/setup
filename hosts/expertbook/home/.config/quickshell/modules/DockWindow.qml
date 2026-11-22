@@ -20,6 +20,51 @@ Scope {
     readonly property bool attention: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier !== "quiet"); }
     readonly property bool urgent: { Notifs.rev; return Notifs.history.some(r => !r.seen && r.tier === "needs"); }
 
+    // ── Where is the cursor? ──
+    // Polled from Hyprland while it matters: after the pointer touched the edge, and
+    // while the dock is open (unless pinned with Super+D). Resting still counts.
+    property bool watching: false
+    property real edgeSince: 0
+    property real awaySince: 0
+    readonly property int hideDelay: 500
+    Timer {
+        interval: 100; repeat: true; triggeredOnStart: true
+        running: root.watching || (root.revealed && !root.sticky)
+        onTriggered: if (!cursorPos.running) cursorPos.running = true
+    }
+    Process {
+        id: cursorPos
+        command: ["hyprctl", "cursorpos", "-j"]
+        stdout: StdioCollector { onStreamFinished: root.onCursor(text) }
+    }
+    function onCursor(t) {
+        let p;
+        try { p = JSON.parse(t); } catch (e) { return; }
+        const s = root.modelData, now = Date.now();
+        const right = s.x + s.width;
+        const inY = p.y >= s.y && p.y < s.y + s.height;
+        const onEdge = inY && p.x >= right - 2 && p.x < right;
+        const top = s.y + Theme.barH + Theme.gap;
+        const inDock = root.revealed && inY
+            && p.x >= right - Theme.gap - panel.implicitWidth - 4
+            && p.y >= top - 4 && p.y <= top + panel.implicitHeight + 4;
+
+        if (!root.revealed) {
+            root.awaySince = 0;
+            if (!onEdge) { root.edgeSince = 0; root.watching = false; return; }
+            if (!root.edgeSince) root.edgeSince = now;
+            if (now - root.edgeSince >= root.revealDelay) {
+                root.revealed = true; root.sticky = false; root.edgeSince = 0;
+            }
+        } else if (!root.sticky) {
+            if (onEdge || inDock) { root.awaySince = 0; return; }
+            if (!root.awaySince) root.awaySince = now;
+            if (now - root.awaySince >= root.hideDelay) {
+                root.revealed = false; root.awaySince = 0; root.watching = false;
+            }
+        }
+    }
+
     IpcHandler {
         target: "dock"
         function toggle(): void {
@@ -38,11 +83,14 @@ Scope {
         WlrLayershell.namespace: "nixie-dock-edge"
         WlrLayershell.layer: WlrLayer.Overlay
 
-        HoverHandler { id: edgeHover }
-        Timer {
-            interval: root.revealDelay
-            running: edgeHover.hovered && !root.revealed
-            onTriggered: { root.revealed = true; root.sticky = false; }
+        // Any pointer event on the strip starts the position check below; the
+        // decision itself is made from the real cursor position, not from events.
+        HoverHandler { onHoveredChanged: if (hovered) root.watching = true }
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onEntered: root.watching = true
+            onPositionChanged: root.watching = true
         }
     }
 
@@ -86,12 +134,6 @@ Scope {
         WlrLayershell.namespace: "nixie-popups"
         WlrLayershell.layer: WlrLayer.Overlay
 
-        HoverHandler { id: dockHover }
-        Timer { // slide out shortly after the pointer leaves
-            interval: 500
-            running: root.revealed && !root.sticky && !dockHover.hovered && !edgeHover.hovered
-            onTriggered: root.revealed = false
-        }
 
         Rectangle {
             id: card

@@ -269,7 +269,7 @@ PanelWindow {
                     }
                     DashGauge {
                         readonly property real frac: dash.battery?.percentage ?? 0
-                        value: frac
+                        value: (!UPower.onBattery && !isCharging) ? 1 : frac   // full when held at the limit
                         text: Math.round(frac * 100)
                         readonly property bool isCharging: dash.battery?.state === UPowerDeviceState.Charging
                         charging: isCharging

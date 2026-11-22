@@ -227,7 +227,8 @@ Item {
             readonly property string mode: ({ "power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance" })[Sys.powerProfile] ?? "Balanced"
             // Yellow whenever plugged in; the spark animation only while really charging (not when held at the 80 % limit).
             readonly property bool isCharging: UPower.displayDevice?.state === UPowerDeviceState.Charging
-            value: frac
+            // Plugged in and held at the charge limit: show a full ring (the tooltip keeps the real %).
+            value: (!UPower.onBattery && !isCharging) ? 1 : frac
             charging: isCharging
             icon: isCharging ? "bolt" : !UPower.onBattery ? "power"
                 : ({ "power-saver": "eco", "balanced": "balance", "performance": "speed" })[Sys.powerProfile] ?? "balance"

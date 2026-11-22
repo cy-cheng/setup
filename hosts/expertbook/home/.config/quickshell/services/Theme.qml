@@ -21,7 +21,7 @@ Singleton {
     readonly property color amber: "#ffac32"       // emphasis only
     readonly property color amberDim: "#c97824"
     readonly property color green: "#8fd18b"
-    readonly property color yellow: "#ffd84d"     // charging
+    readonly property color yellow: "#ffe94a"     // charging (bright: the warm screen filter pulls it toward orange)
     readonly property color red: "#ff5c57"
 
     // Tier accents (used as small dots/rings, never as full outlines)

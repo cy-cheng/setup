@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
+import QtQuick.Effects
 import qs.services
 
 // Small circular gauge: track, value arc from 12 o'clock, icon in the middle.
@@ -13,7 +14,7 @@ Item {
     property real stroke: 2.5
     property string tip             // shown on hover
     property bool tipInPanel: false
-    property bool charging: false   // animated highlight sweeping through the empty part
+    property bool charging: false   // spark circling the ring (battery charging)
     signal clicked
     signal scrolled(bool up)
 
@@ -38,30 +39,42 @@ Item {
                            startAngle: -90; sweepAngle: 360 * Math.max(0, Math.min(1, ring.value)) }
         }
     }
-    // Charging: a short bright segment runs from the current level to full, fading out.
-    property real sweep: 0
-    NumberAnimation on sweep {
+    // Charging: a spark circles the ring with a fading tail and a soft glow,
+    // like energy flowing in. Head is white-hot, tail takes the ring colour.
+    property real orbit: 0
+    NumberAnimation on orbit {
         running: ring.charging && ring.visible
-        from: 0; to: 1; duration: 1400; loops: Animation.Infinite
-        easing.type: Easing.InOutSine
-        onRunningChanged: if (!running) ring.sweep = 0
+        from: 0; to: 1; duration: 1800; loops: Animation.Infinite
+        onRunningChanged: if (!running) ring.orbit = 0
     }
-    Shape {
-        id: chargeArc
+    Item {
+        id: comet
         anchors.fill: parent
-        visible: ring.charging && ring.value < 0.995
-        preferredRendererType: Shape.CurveRenderer
-        readonly property real rest: 360 * (1 - Math.max(0, Math.min(1, ring.value)))
-        readonly property real seg: Math.min(48, rest)
-        ShapePath {
-            strokeColor: Qt.rgba(ring.tint.r, ring.tint.g, ring.tint.b, 0.85 * (1 - ring.sweep))
-            strokeWidth: ring.stroke; fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-            PathAngleArc { centerX: ring.size / 2; centerY: ring.size / 2
-                           radiusX: (ring.size - ring.stroke) / 2; radiusY: radiusX
-                           startAngle: -90 + 360 * Math.max(0, Math.min(1, ring.value)) + (chargeArc.rest - chargeArc.seg) * ring.sweep
-                           sweepAngle: chargeArc.seg }
+        visible: ring.charging
+        readonly property real r: (ring.size - ring.stroke) / 2
+        Repeater {
+            model: 7
+            delegate: Rectangle {
+                required property int index
+                readonly property real a: (ring.orbit - index * 0.032) * 2 * Math.PI - Math.PI / 2
+                readonly property real d: (ring.stroke + 1.6) * (1 - index * 0.12)
+                width: d; height: d; radius: d / 2
+                x: ring.size / 2 + comet.r * Math.cos(a) - d / 2
+                y: ring.size / 2 + comet.r * Math.sin(a) - d / 2
+                color: index === 0 ? "#fffbe8" : ring.tint
+                opacity: 1 - index / 7.5
+            }
         }
+    }
+    MultiEffect { // soft glow around the spark and its tail
+        anchors.fill: comet
+        visible: ring.charging
+        source: comet
+        blurEnabled: true
+        blur: 1.0
+        blurMax: Math.round(ring.size / 3)
+        brightness: 0.25
+        opacity: 0.9
     }
     Icon {
         anchors.centerIn: parent

@@ -12,6 +12,7 @@ Singleton {
     readonly property color island: "#a61a1918"    // bar islands ~65%, sit on the frame
     readonly property color glass: "#d11a1918"     // centre, panels ~82%
     readonly property color notif: "#8c1a1918"     // notification cards ~55%, blurred behind
+    readonly property color centre: "#591a1918"    // notification centre background ~35% (blur cut-off is 0.2)
     readonly property color raised: "#cc2c2a27"    // pills inside islands, hover
     readonly property color line: "#3dffffff"      // hairlines: light edge reads better on glass
     readonly property color track: "#34312e"       // gauge tracks

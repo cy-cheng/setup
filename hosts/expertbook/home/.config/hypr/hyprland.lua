@@ -440,7 +440,7 @@ hl.layer_rule({
     name  = "nixie-shell-blur",
     match = { namespace = "^nixie-(frame|popups|centre)$" },
     blur = true,
-    ignore_alpha = 0.3,
+    ignore_alpha = 0.2,   -- blur still applies to the 35% notification centre
 })
 
 -- slurp's selection layer and hyprpicker's freeze layer must appear/vanish instantly,

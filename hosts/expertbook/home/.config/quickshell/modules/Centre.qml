@@ -43,7 +43,7 @@ PanelWindow {
         x: centre.open ? 0 : width + Theme.gap * 2
         Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         radius: Theme.radius + 4
-        color: Theme.notif          // same see-through glass as the cards
+        color: Theme.centre         // lighter than the cards so they stand out on it
         border.color: Theme.line
         focus: true
         Keys.onEscapePressed: Notifs.centreOpen = false

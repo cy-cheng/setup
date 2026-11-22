@@ -1,0 +1,7 @@
+#!/bin/bash
+# Power key: wake the display if it's off, otherwise open/close the session menu.
+if hyprctl monitors -j | grep -q '"dpmsStatus": false'; then
+    hyprctl dispatch 'hl.dsp.dpms({ action = "on" })' >/dev/null
+else
+    qs ipc call panels toggle power
+fi

@@ -362,6 +362,10 @@ hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("~/.local/bin/brightness down"),
 -- Caps Lock (keycode 66, its normal function disabled above): English <-> 注音/last input method
 hl.bind("code:66", hl.dsp.exec_cmd("fcitx5-remote -t"))
 
+-- Power key: wakes the display if off, otherwise opens the session menu
+-- (needs logind HandlePowerKey=ignore: install/power/90-power-key-menu.conf)
+hl.bind("XF86PowerOff", hl.dsp.exec_cmd("~/.local/bin/power-button"), { locked = true })
+
 -- Dock: Super+D slides it in/out (or rest the pointer on the right edge ~2 s)
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call dock toggle"))
 

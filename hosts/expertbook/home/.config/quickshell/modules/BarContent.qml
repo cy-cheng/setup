@@ -241,5 +241,12 @@ Item {
             }
             Tip { text: (Notifs.focusMode ? "Focus mode · " : "") + (Notifs.unseen ? Notifs.unseen + " unread" : "No new notifications") + " · right-click: focus" }
         }
+
+        Icon { // session: lock, suspend, log out, reboot, power off
+            text: "power_settings_new"
+            color: Theme.muted
+            MouseArea { anchors.fill: parent; onClicked: Panels.toggle("power") }
+            Tip { text: "Lock, suspend, log out, reboot, power off" }
+        }
     }
 }

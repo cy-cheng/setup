@@ -42,4 +42,17 @@ for f in chrome-flags.conf electron-flags.conf code-flags.conf discord-flags.con
     [ -e ~/.config/$f ] || printf '%s\n' "$flags" > ~/.config/$f
 done
 
+# Zoom: native Wayland instead of XWayland (XWayland apps are drawn at half resolution
+# and stretched at 2x scaling). Zoom rewrites zoomus.conf on exit, so only edit it
+# while Zoom is closed.
+if [ -e ~/.config/zoomus.conf ] && ! pgrep -x zoom >/dev/null; then
+    sed -i 's/^xwayland=true$/xwayland=false/' ~/.config/zoomus.conf
+    grep -q '^enableWaylandShare=' ~/.config/zoomus.conf \
+        || sed -i '/^\[General\]/a enableWaylandShare=true' ~/.config/zoomus.conf
+fi
+# Spotify (spotify-launcher): native Wayland too
+[ -e ~/.config/spotify-launcher.conf ] || printf '%s\n' '[spotify]' \
+    'extra_arguments = ["--enable-features=UseOzonePlatform", "--ozone-platform=wayland"]' \
+    > ~/.config/spotify-launcher.conf
+
 echo "Done."

@@ -34,6 +34,7 @@ FILES=(
     .config/code-flags.conf
     .config/discord-flags.conf
     .config/slack-flags.conf
+    .config/spotify-launcher.conf
     .local/bin/brightness
     .local/bin/charge-limit
     .local/bin/display-mode

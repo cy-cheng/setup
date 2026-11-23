@@ -27,6 +27,8 @@ FILES=(
     .config/fish/conf.d/theme.fish
     .config/fish/functions/rm-to-trash.fish
     .config/qt6ct/qt6ct.conf
+    .config/kdeglobals
+    .config/xdg-desktop-portal/hyprland-portals.conf
     .config/gtk-3.0/settings.ini
     .config/gtk-4.0/settings.ini
     .config/chrome-flags.conf
@@ -47,6 +49,7 @@ FILES=(
     .local/bin/start-fcitx
     .local/bin/nixie-focus
     .local/share/dbus-1/services/org.freedesktop.Notifications.service
+    .local/share/dbus-1/services/org.freedesktop.FileManager1.service
     .config/quickshell/shell.qml
     .config/quickshell/services/Theme.qml
     .config/quickshell/services/Vpn.qml

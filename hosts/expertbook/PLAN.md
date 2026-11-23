@@ -15,11 +15,14 @@ Status: nothing installed yet. [x] = already on this laptop.
   wireless_tools, wpa_supplicant (NM uses iwd/wpa anyway; decide), os-prober (if no dual boot)
 
 ## 2. Nixie desktop (what install.sh needs)
-- [x] hyprland hypridle hyprlock hyprpolkitagent xdg-desktop-portal-hyprland rofi kitty
+- [x] hyprland hypridle hyprlock xdg-desktop-portal-hyprland kitty (rofi, hyprpolkitagent removed)
 - hyprpicker grim slurp python-pillow (screenshots: ~/.local/bin/shot) uwsm (no hyprsunset: the warm shader is always on) (dunst dropped: the Quickshell shell owns notifications)
 - build deps: rustup (cargo), gtk3 gtk-layer-shell libpulse libnm jq curl geoclue pkgconf
 - fcitx5 fcitx5-chewing fcitx5-rime fcitx5-mozc fcitx5-gtk fcitx5-qt fcitx5-configtool
 - qt6-wayland qt5-wayland qt6ct, gnome-keyring + seahorse, xdg-utils
+- Files: dolphin + xdg-desktop-portal-kde (Open/Save dialogs match Dolphin; portal pref in
+  ~/.config/xdg-desktop-portal/hyprland-portals.conf), kio-extras ffmpegthumbs
+  kdegraphics-thumbnailers breeze breeze-icons ark; exfatprogs (USB sticks). Thunar replaced.
 - AUR: yay, input-remapper-git (mouse keys), blueberry
 - Fonts: noto-fonts-emoji, ttf-cascadia-mono-nerd (kitty "CaskaydiaMono NF"),
   adwaita-fonts, otf-font-awesome [x noto-fonts noto-fonts-cjk]

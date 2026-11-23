@@ -37,7 +37,7 @@ Status: nothing installed yet. [x] = already on this laptop.
 ## 4. Apps (pick)
 firefox, google-chrome, visual-studio-code-bin, discord, libreoffice-fresh, obs-studio, gimp,
 vlc, zathura(-pdf-poppler)/evince, xournalpp, remmina, onedrive-abraunegg, anydesk-bin,
-KiCad (flatpak), freecad, spectacle?, qpwgraph, rpi-imager
+KiCad (flatpak), freecad, spectacle?, qpwgraph, rpi-imager, platformio-core + platformio-core-udev (carcar)
 
 ## 5. Dev / EDA (pick)
 docker docker-compose, dotnet-sdk, iverilog yosys gtkwave, postgresql, openmpi, cmake meson,

@@ -89,8 +89,9 @@ end)
 
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
--- Qt apps follow ~/.config/qt6ct/qt6ct.conf (dark palette, Papirus icons)
-hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+-- Qt apps follow ~/.config/kdeglobals (Breeze Dark + amber, Papirus icons) via plasma-integration,
+-- so Dolphin and the KDE Open/Save dialog get one consistent colour scheme.
+hl.env("QT_QPA_PLATFORMTHEME", "kde")
 -- Fcitx5 input method. GTK and Chromium/Electron use Wayland text-input directly,
 -- so GTK_IM_MODULE is deliberately unset; Qt tries Wayland first, then Fcitx.
 hl.env("XMODIFIERS", "@im=fcitx")

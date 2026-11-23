@@ -189,9 +189,16 @@ Name[zh_CN]=Breeze 微风深色
 Name[zh_TW]=Breeze Dark
 shadeSortColumn=true
 TerminalApplication=kitty
+font=Adwaita Sans,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+menuFont=Adwaita Sans,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+toolBarFont=Adwaita Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+smallestReadableFont=Adwaita Sans,9,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+fixed=CaskaydiaMono NFM,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
 
 [KDE]
 contrast=4
+widgetStyle=Breeze
+SingleClick=false
 
 [WM]
 activeBackground=39,44,49

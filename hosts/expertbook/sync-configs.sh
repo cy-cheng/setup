@@ -28,6 +28,8 @@ FILES=(
     .config/fish/functions/rm-to-trash.fish
     .config/qt6ct/qt6ct.conf
     .config/kdeglobals
+    .config/dolphinrc
+    .local/share/dolphin/view_properties/global/.directory
     .config/xdg-desktop-portal/hyprland-portals.conf
     .config/gtk-3.0/settings.ini
     .config/gtk-4.0/settings.ini

@@ -1,2 +1,0 @@
-# Let idle PCI devices (Thunderbolt, audio, NPU, …) power down, as powertop --auto-tune would.
-ACTION=="add|bind", SUBSYSTEM=="pci", TEST=="power/control", ATTR{power/control}="auto"

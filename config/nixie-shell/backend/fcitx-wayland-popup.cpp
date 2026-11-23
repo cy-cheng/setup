@@ -259,9 +259,28 @@ class NativeCandidatePopup::Impl {
         auto* self = static_cast<Impl*>(data);
         if (std::strcmp(interface, wl_compositor_interface.name) == 0 && !self->compositor_) {
             self->compositor_ = static_cast<wl_compositor*>(
-                wl_registry_bind(registry, name, &wl_compositor_interface, std::min(version, 4u)));
+                wl_registry_bind(registry, name, &wl_compositor_interface, std::min(version, 6u)));
         } else if (std::strcmp(interface, wl_shm_interface.name) == 0 && !self->shm_) {
             self->shm_ = static_cast<wl_shm*>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
+        } else if (std::strcmp(interface, wl_output_interface.name) == 0 && version >= 2) {
+            // Fallback for compositors without wl_surface.preferred_buffer_scale:
+            // render at the largest output scale.
+            auto* output = static_cast<wl_output*>(wl_registry_bind(registry, name, &wl_output_interface, 2));
+            static const wl_output_listener outputListener = {
+                .geometry = [](void*, wl_output*, int32_t, int32_t, int32_t, int32_t, int32_t, const char*,
+                               const char*, int32_t) {},
+                .mode = [](void*, wl_output*, uint32_t, int32_t, int32_t, int32_t) {},
+                .done = [](void*, wl_output*) {},
+                .scale =
+                    [](void* data, wl_output*, int32_t factor) {
+                        auto* impl = static_cast<Impl*>(data);
+                        impl->outputScale_ = std::max(impl->outputScale_, factor);
+                    },
+                .name = nullptr,
+                .description = nullptr,
+            };
+            wl_output_add_listener(output, &outputListener, self);
+            self->outputs_.push_back(output);
         }
     }
 
@@ -276,6 +295,7 @@ class NativeCandidatePopup::Impl {
         };
         wl_registry_add_listener(registry_, &listener, this);
         wl_display_roundtrip(display_);
+        wl_display_roundtrip(display_);  // second pass delivers the wl_output scale events
     }
 
     void resetSurface() {
@@ -290,6 +310,9 @@ class NativeCandidatePopup::Impl {
         resetSurface();
         if (shm_) wl_shm_destroy(shm_);
         shm_ = nullptr;
+        for (auto* output : outputs_) wl_output_destroy(output);
+        outputs_.clear();
+        outputScale_ = 1;
         if (compositor_) wl_compositor_destroy(compositor_);
         compositor_ = nullptr;
         if (registry_) wl_registry_destroy(registry_);
@@ -302,6 +325,18 @@ class NativeCandidatePopup::Impl {
         resetSurface();
         surface_ = wl_compositor_create_surface(compositor_);
         if (!surface_) return false;
+        preferredScale_ = 0;
+        // The compositor tells us the scale of the output the popup is on (v6+).
+        static const wl_surface_listener surfaceListener = {
+            .enter = [](void*, wl_surface*, wl_output*) {},
+            .leave = [](void*, wl_surface*, wl_output*) {},
+            .preferred_buffer_scale =
+                [](void* data, wl_surface*, int32_t factor) {
+                    static_cast<Impl*>(data)->preferredScale_ = factor;
+                },
+            .preferred_buffer_transform = [](void*, wl_surface*, uint32_t) {},
+        };
+        wl_surface_add_listener(surface_, &surfaceListener, this);
         popup_ = createInputPopup(method, surface_);
         if (!popup_) {
             resetSurface();
@@ -400,7 +435,11 @@ class NativeCandidatePopup::Impl {
 
     bool draw(fcitx::InputContext* ic, const std::vector<Candidate>& items, const std::string& preedit, bool expanded,
               int page, int cursor, bool hasPrev, bool hasNext) {
-        const int scale = std::clamp(static_cast<int>(std::ceil(std::max(1.0, ic->scaleFactor()))), 1, 3);
+        // fcitx reports 1.0 for input-method-v2 clients, so ask Wayland instead.
+        // On a 2x panel a 1x buffer gets stretched and looks blurry.
+        int scale = static_cast<int>(std::ceil(std::max(1.0, ic->scaleFactor())));
+        scale = std::max(scale, preferredScale_ > 0 ? preferredScale_ : outputScale_);
+        scale = std::clamp(scale, 1, 3);
         if (items.empty()) return drawPill(preedit, scale);
         cairo_surface_t* measureSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
         cairo_t* measureContext = cairo_create(measureSurface);
@@ -509,6 +548,9 @@ class NativeCandidatePopup::Impl {
     zwp_input_method_v2* method_ = nullptr;
     wl_surface* surface_ = nullptr;
     zwp_input_popup_surface_v2* popup_ = nullptr;
+    std::vector<wl_output*> outputs_;
+    int outputScale_ = 1;
+    int preferredScale_ = 0;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::WaylandConnectionCreated>> connectionCreated_;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::WaylandConnectionClosed>> connectionClosed_;
 };

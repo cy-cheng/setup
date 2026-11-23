@@ -336,7 +336,15 @@ hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }))
 -- Move active window to a workspace with mainMod + SHIFT + [0-9]
 for i = 1, 10 do
     local key = i % 10 -- 10 maps to key 0
-    hl.bind(mainMod .. " + " .. key,             hl.dsp.focus({ workspace = i}))
+    -- If a scratchpad (e.g. Discord on Super+D) is open, close it first so you
+    -- actually land on workspace i instead of keeping the scratchpad on top.
+    hl.bind(mainMod .. " + " .. key, function ()
+        local sp = hl.get_active_special_workspace()
+        if sp ~= nil then
+            hl.dispatch(hl.dsp.workspace.toggle_special((sp.name:gsub("^special:", ""))))
+        end
+        hl.dispatch(hl.dsp.focus({ workspace = i }))
+    end)
     hl.bind(mainMod .. " + SHIFT + " .. key,     hl.dsp.window.move({ workspace = i }))
 end
 

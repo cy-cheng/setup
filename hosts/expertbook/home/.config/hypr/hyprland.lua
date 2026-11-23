@@ -362,8 +362,8 @@ hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
 hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true, repeating = true })
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
--- Software brightness: the OLED panel flickers when dimmed, so ~/.local/bin/brightness
--- keeps it at 100% and dims through the screen shader instead.
+-- Brightness keys: ~/.local/bin/brightness sets the panel backlight in fine steps
+-- (2%, or 1% below 20%) and keeps the bar/OSD level in sync.
 hl.bind("XF86MonBrightnessUp",  hl.dsp.exec_cmd("~/.local/bin/brightness up"),                    { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown",hl.dsp.exec_cmd("~/.local/bin/brightness down"),                  { locked = true, repeating = true })
 

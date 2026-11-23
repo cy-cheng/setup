@@ -4,7 +4,7 @@
 # only adds the warm tint. (Software dimming was a workaround for flicker that
 # turned out to be panel self-refresh, fixed by xe.enable_psr=0.)
 #
-# Usage: brightness up | down | set <5-100> | apply | get
+# Usage: brightness up | down | set <1-100> | apply | get
 #        brightness dim      (drop to 10% without changing the saved level)
 #        brightness restore  (back to the saved level)
 set -euo pipefail
@@ -12,7 +12,7 @@ set -euo pipefail
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}"
 state="$state_dir/brightness"
 shader="$HOME/.config/hypr/shaders/warm-dim.frag"
-step=5 min=5 max=100
+min=1 max=100
 tint="1.0, 0.72, 0.45" # warm: full red, less green, much less blue
 
 mkdir -p "$state_dir" "$(dirname "$shader")"
@@ -20,9 +20,10 @@ level=$(cat "$state" 2>/dev/null || echo 60)
 save=1
 
 case "${1:-get}" in
-    up) level=$((level + step)) ;;
-    down) level=$((level - step)) ;;
-    set) level=${2:?usage: brightness set <5-100>} ;;
+    # Fine steps: 2% normally, 1% in the dim range where each step is most visible.
+    up) level=$((level + (level < 20 ? 1 : 2))) ;;
+    down) level=$((level - (level <= 20 ? 1 : 2))) ;;
+    set) level=${2:?usage: brightness set <1-100>} ;;
     apply | restore) ;;
     dim) level=$((level < 10 ? level : 10)); save=0 ;;
     get) echo "$level"; exit 0 ;;

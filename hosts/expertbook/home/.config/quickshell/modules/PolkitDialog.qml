@@ -81,6 +81,7 @@ PanelWindow {
                     color: Qt.rgba(1, 0.675, 0.196, 0.14)
                     border.color: Qt.rgba(1, 0.675, 0.196, 0.45)
                     Icon {
+                        id: authIcon
                         anchors.centerIn: parent
                         size: 26
                         text: dlg.needsInput ? "lock" : "fingerprint"
@@ -90,7 +91,7 @@ PanelWindow {
                             loops: Animation.Infinite
                             NumberAnimation { to: 0.45; duration: 800; easing.type: Easing.InOutSine }
                             NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
-                            onRunningChanged: if (!running) parent.opacity = 1
+                            onRunningChanged: if (!running) authIcon.opacity = 1
                         }
                     }
                 }

@@ -32,13 +32,26 @@ PanelWindow {
 
     readonly property var adapter: Bluetooth.defaultAdapter
     readonly property bool on: adapter?.enabled ?? false
-    readonly property var devices: {
+    // Stable order: sorted once when the panel opens (connected, paired, then by name);
+    // devices found later are appended at the bottom, so rows never jump under the cursor.
+    property var order: []
+    readonly property var known: {
         if (!adapter) return [];
-        const rank = d => d.connected ? 0 : d.paired ? 1 : 2;
         return adapter.devices.values
             // Nearby devices that only broadcast an address (name like 1A-87-FD-…) are noise.
-            .filter(d => d.connected || d.paired || (d.name && !/^([0-9A-F]{2}[-:]){5}[0-9A-F]{2}$/i.test(d.name)))
-            .sort((a, b) => (rank(a) - rank(b)) || a.name.localeCompare(b.name));
+            .filter(d => d.connected || d.paired || (d.name && !/^([0-9A-F]{2}[-:]){5}[0-9A-F]{2}$/i.test(d.name)));
+    }
+    function resort() {
+        const rank = d => d.connected ? 0 : d.paired ? 1 : 2;
+        order = known.slice().sort((a, b) => (rank(a) - rank(b)) || a.name.localeCompare(b.name)).map(d => d.address);
+    }
+    onVisibleChanged: if (visible) resort()
+    readonly property var devices: {
+        const byAddr = {};
+        for (const d of known) byAddr[d.address] = d;
+        const out = order.filter(a => byAddr[a]).map(a => byAddr[a]);
+        for (const d of known) if (!order.includes(d.address)) out.push(d);   // new: at the end
+        return out;
     }
 
     // Discover new devices only while the panel is open.
@@ -108,66 +121,69 @@ PanelWindow {
                         readonly property var d: modelData
                         readonly property bool busy: d.pairing || d.state === BluetoothDeviceState.Connecting
                                                     || d.state === BluetoothDeviceState.Disconnecting
+                        readonly property bool hovered: rowMouse.containsMouse || forgetMouse.containsMouse
                         Layout.fillWidth: true
-                        implicitHeight: col.implicitHeight + 16
+                        implicitHeight: 44                      // fixed: nothing moves on hover
                         radius: 10
-                        color: rowMouse.containsMouse ? Theme.raised : "transparent"
+                        color: hovered ? Theme.raised : "transparent"
 
+                        // Whole row: connect / disconnect / pair.
                         MouseArea {
                             id: rowMouse
                             anchors.fill: parent
                             hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (row.d.connected || row.busy) return;
-                                if (row.d.paired) row.d.connect();
+                                if (row.busy) return;
+                                if (row.d.connected) row.d.disconnect();
+                                else if (row.d.paired) row.d.connect();
                                 else { row.d.trusted = true; row.d.pair(); }
                             }
                         }
 
-                        ColumnLayout {
-                            id: col
-                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                                      leftMargin: 10; rightMargin: 10 }
-                            spacing: 8
-
-                            RowLayout {
+                        RowLayout {
+                            anchors { fill: parent; leftMargin: 10; rightMargin: 6 }
+                            spacing: 10
+                            Icon { text: panel.iconFor(row.d); color: row.d.connected ? Theme.amber : Theme.fg }
+                            Label {
                                 Layout.fillWidth: true
-                                spacing: 10
-                                Icon { text: panel.iconFor(row.d); color: row.d.connected ? Theme.amber : Theme.fg }
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: row.d.name
-                                    elide: Text.ElideRight
-                                    font.weight: row.d.connected ? Font.DemiBold : Font.Normal
-                                }
-                                Label { // battery
-                                    visible: row.d.batteryAvailable
-                                    text: Math.round(row.d.battery * (row.d.battery > 1 ? 1 : 100)) + "%"
-                                    color: Theme.muted; font.pixelSize: Theme.textSm
-                                }
-                                Label {
-                                    text: row.busy ? "…" : row.d.connected ? "Connected" : row.d.paired ? "Paired" : "Pair"
-                                    color: row.d.connected ? Theme.amber : Theme.faint
-                                    font.pixelSize: Theme.textSm
-                                }
+                                text: row.d.name
+                                elide: Text.ElideRight
+                                font.weight: row.d.connected ? Font.DemiBold : Font.Normal
                             }
-
-                            RowLayout { // actions on hover for known devices
-                                visible: rowMouse.containsMouse && (row.d.connected || row.d.paired)
-                                spacing: 6
-                                Repeater {
-                                    model: (row.d.connected ? [["Disconnect", () => row.d.disconnect()]] : [])
-                                           .concat([["Forget", () => row.d.forget()]])
-                                    delegate: Rectangle {
-                                        required property var modelData
-                                        implicitWidth: actLabel.implicitWidth + 20; implicitHeight: 24; radius: 12
-                                        color: actMouse.containsMouse ? Theme.amber : Theme.island
-                                        border.color: Theme.line
-                                        Label { id: actLabel; anchors.centerIn: parent; text: modelData[0]
-                                                font.pixelSize: Theme.textSm; color: actMouse.containsMouse ? Theme.base : Theme.fg }
-                                        MouseArea { id: actMouse; anchors.fill: parent; hoverEnabled: true; onClicked: modelData[1]() }
-                                    }
+                            Label { // battery
+                                visible: row.d.batteryAvailable
+                                text: Math.round(row.d.battery * (row.d.battery > 1 ? 1 : 100)) + "%"
+                                color: Theme.muted; font.pixelSize: Theme.textSm
+                            }
+                            Label { // what a click does (or what's happening)
+                                text: row.busy ? "…"
+                                    : row.d.connected ? (row.hovered ? "Disconnect" : "Connected")
+                                    : row.d.paired ? "Connect" : "Pair"
+                                color: row.d.connected && !row.hovered ? Theme.amber : row.hovered ? Theme.fg : Theme.faint
+                                font.pixelSize: Theme.textSm
+                            }
+                            Item { // forget (known devices): fades in on hover, never changes the layout
+                                Layout.preferredWidth: 28; Layout.preferredHeight: 28
+                                visible: row.d.paired || row.d.connected
+                                opacity: row.hovered ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: 100 } }
+                                Rectangle {
+                                    anchors.fill: parent; radius: 14
+                                    color: forgetMouse.containsMouse ? Qt.rgba(1, 0.36, 0.34, 0.18) : "transparent"
                                 }
+                                Icon {
+                                    anchors.centerIn: parent; size: 16; text: "delete"
+                                    color: forgetMouse.containsMouse ? Theme.red : Theme.muted
+                                }
+                                MouseArea {
+                                    id: forgetMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: parent.visible
+                                    onClicked: row.d.forget()
+                                }
+                                Tip { text: "Forget this device"; inPanel: true }
                             }
                         }
                     }

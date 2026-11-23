@@ -34,16 +34,26 @@ PanelWindow {
         for (const d of Networking.devices.values) if (d.type === DeviceType.Wifi) return d;
         return null;
     }
+    // Stable order: sorted once when the panel opens (connected first, then signal);
+    // networks found later go to the bottom, so rows don't jump while scanning.
+    property var order: []
+    readonly property var all: wifi ? wifi.networks.values.filter(n => n.name !== "") : []
+    function resort() {
+        order = all.slice().sort((a, b) => (b.connected - a.connected) || (b.signalStrength - a.signalStrength))
+                   .map(n => n.name);
+    }
     readonly property var networks: {
-        if (!wifi) return [];
-        const list = wifi.networks.values.filter(n => n.name !== "");
-        return list.sort((a, b) => (b.connected - a.connected) || (b.signalStrength - a.signalStrength));
+        const byName = {};
+        for (const n of all) byName[n.name] = n;
+        const out = order.filter(k => byName[k]).map(k => byName[k]);
+        for (const n of all) if (!order.includes(n.name)) out.push(n);
+        return out;
     }
     property string askingFor: ""          // network name awaiting a password
 
     // Scan only while the panel is open.
     Binding { target: panel.wifi; property: "scannerEnabled"; value: panel.visible; when: panel.wifi !== null }
-    onVisibleChanged: if (!visible) askingFor = ""
+    onVisibleChanged: if (visible) resort(); else askingFor = ""
 
     function bars(n) {
         const s = n.signalStrength > 1 ? n.signalStrength / 100 : n.signalStrength;
@@ -103,7 +113,7 @@ PanelWindow {
                         Layout.fillWidth: true
                         implicitHeight: col.implicitHeight + 16
                         radius: 10
-                        color: rowMouse.containsMouse || asking ? Theme.raised : "transparent"
+                        color: rowMouse.containsMouse || forgetMouse.containsMouse || asking ? Theme.raised : "transparent"
 
                         MouseArea {
                             id: rowMouse
@@ -111,7 +121,7 @@ PanelWindow {
                             hoverEnabled: true
                             onClicked: {
                                 const n = row.modelData;
-                                if (n.connected) return;
+                                if (n.connected) { n.disconnect(); return; }
                                 if (n.known || !panel.secured(n)) n.connect();
                                 else panel.askingFor = (panel.askingFor === n.name) ? "" : n.name;
                             }
@@ -134,29 +144,25 @@ PanelWindow {
                                     font.weight: row.modelData.connected ? Font.DemiBold : Font.Normal
                                 }
                                 Icon { visible: panel.secured(row.modelData); size: 14; text: "lock"; color: Theme.faint }
-                                Label {
-                                    visible: row.modelData.connected || row.modelData.stateChanging
-                                    text: row.modelData.stateChanging ? "…" : "Connected"
-                                    color: Theme.amber
+                                Label { // what a click does (or what's happening)
+                                    readonly property bool hov: rowMouse.containsMouse || forgetMouse.containsMouse
+                                    text: row.modelData.stateChanging ? "…"
+                                        : row.modelData.connected ? (hov ? "Disconnect" : "Connected")
+                                        : hov ? "Connect" : ""
+                                    visible: text !== ""
+                                    color: row.modelData.connected && !hov ? Theme.amber : Theme.fg
                                     font.pixelSize: Theme.textSm
                                 }
-                            }
-
-                            RowLayout { // actions for the connected network
-                                visible: row.modelData.connected && rowMouse.containsMouse
-                                spacing: 6
-                                Repeater {
-                                    model: [["Disconnect", () => row.modelData.disconnect()],
-                                            ["Forget", () => row.modelData.forget()]]
-                                    delegate: Rectangle {
-                                        required property var modelData
-                                        implicitWidth: actLabel.implicitWidth + 20; implicitHeight: 24; radius: 12
-                                        color: actMouse.containsMouse ? Theme.amber : Theme.island
-                                        border.color: Theme.line
-                                        Label { id: actLabel; anchors.centerIn: parent; text: modelData[0]
-                                                font.pixelSize: Theme.textSm; color: actMouse.containsMouse ? Theme.base : Theme.fg }
-                                        MouseArea { id: actMouse; anchors.fill: parent; hoverEnabled: true; onClicked: modelData[1]() }
-                                    }
+                                Item { // forget (saved networks): fades in on hover, layout never changes
+                                    Layout.preferredWidth: 28; Layout.preferredHeight: 28
+                                    visible: row.modelData.known || row.modelData.connected
+                                    opacity: rowMouse.containsMouse || forgetMouse.containsMouse ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: 100 } }
+                                    Rectangle { anchors.fill: parent; radius: 14
+                                                color: forgetMouse.containsMouse ? Qt.rgba(1, 0.36, 0.34, 0.18) : "transparent" }
+                                    Icon { anchors.centerIn: parent; size: 16; text: "delete"
+                                           color: forgetMouse.containsMouse ? Theme.red : Theme.muted }
+                                    MouseArea { id: forgetMouse; anchors.fill: parent; hoverEnabled: true; onClicked: row.modelData.forget() }
                                 }
                             }
 

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Display side of the battery rule (the shell calls this when you unplug / plug in;
+# the CPU/firmware side is the power profile).
+#   power-mode battery   laptop panel at 60 Hz
+#   power-mode ac        laptop panel back to 144 Hz
+set -u
+case "${1:-}" in
+    battery) mode="2880x1800@60" ;;
+    ac)      mode="preferred" ;;
+    *) echo "usage: power-mode battery|ac" >&2; exit 2 ;;
+esac
+# Leave the panel alone when it's switched off (external-only display mode).
+hyprctl -j monitors | grep -q '"name": "eDP-1"' || exit 0
+hyprctl -q eval "hl.monitor({ output = \"eDP-1\", mode = \"$mode\", position = \"0x0\", scale = 2 })"

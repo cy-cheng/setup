@@ -53,6 +53,10 @@ Singleton {
         Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/brightness", up ? "up" : "down"]);
     }
     function toggleIme() { Quickshell.execDetached(["fcitx5-remote", "-t"]); }
+    // Battery rule, display side: 60 Hz panel on battery, 144 Hz plugged in.
+    function applyPowerMode(onBattery) {
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/power-mode", onBattery ? "battery" : "ac"]);
+    }
     function setProfileTo(p) {
         Quickshell.execDetached(["powerprofilesctl", "set", p]);
         root.powerProfile = p;
@@ -70,6 +74,7 @@ Singleton {
         function onOnBatteryChanged() {
             if (!root.startChecked || UPower.onBattery === root.lastOnBattery) return;
             root.lastOnBattery = UPower.onBattery;
+            root.applyPowerMode(UPower.onBattery);
             if (UPower.onBattery) {
                 root.acProfile = root.powerProfile !== "power-saver" ? root.powerProfile : (root.acProfile || "balanced");
                 root.setProfileTo("power-saver");
@@ -90,6 +95,7 @@ Singleton {
                 if (!root.startChecked && (UPower.displayDevice?.ready ?? false)) {
                     root.startChecked = true;
                     root.lastOnBattery = UPower.onBattery;
+                    root.applyPowerMode(UPower.onBattery);
                     if (UPower.onBattery && root.powerProfile !== "power-saver") {
                         root.acProfile = root.powerProfile;
                         root.setProfileTo("power-saver");

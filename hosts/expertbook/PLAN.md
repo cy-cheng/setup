@@ -16,7 +16,7 @@ Status: nothing installed yet. [x] = already on this laptop.
 
 ## 2. Nixie desktop (what install.sh needs)
 - [x] hyprland hypridle hyprlock hyprpolkitagent xdg-desktop-portal-hyprland rofi kitty
-- hyprpicker hyprshot uwsm (no hyprsunset: the warm shader is always on) (dunst dropped: the Quickshell shell owns notifications)
+- hyprpicker grim slurp python-pillow (screenshots: ~/.local/bin/shot) uwsm (no hyprsunset: the warm shader is always on) (dunst dropped: the Quickshell shell owns notifications)
 - build deps: rustup (cargo), gtk3 gtk-layer-shell libpulse libnm jq curl geoclue pkgconf
 - fcitx5 fcitx5-chewing fcitx5-rime fcitx5-mozc fcitx5-gtk fcitx5-qt fcitx5-configtool
 - qt6-wayland qt5-wayland qt6ct, gnome-keyring + seahorse, xdg-utils

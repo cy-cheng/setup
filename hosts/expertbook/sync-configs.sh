@@ -41,6 +41,7 @@ FILES=(
     .local/bin/display-mode
     .local/bin/power-button
     .local/bin/scratch
+    .local/bin/shot
     .local/bin/idle-hibernate
     .local/bin/start-fcitx
     .local/bin/nixie-focus

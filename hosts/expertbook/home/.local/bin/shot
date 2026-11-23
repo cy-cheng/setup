@@ -1,0 +1,59 @@
+#!/bin/bash
+# Frozen-frame screenshot without the mouse pointer.
+#   shot region   drag a rectangle
+#   shot window   click a window
+#   shot output   the focused monitor, no selection
+# Grabs the whole screen first with the pointer hidden, freezes the display with
+# hyprpicker while you choose, then crops the earlier clean grab. hyprshot -z captured
+# hyprpicker's overlay instead, and that overlay has the pointer drawn into it.
+# Saves to ~/Pictures/Screenshots and copies to the clipboard. Esc cancels.
+set -uo pipefail
+mode=${1:-region}
+dir="$HOME/Pictures/Screenshots"
+tmp=$(mktemp --suffix=.png)
+trap 'rm -f "$tmp"; [ -n "${picker:-}" ] && kill "$picker" 2>/dev/null' EXIT
+
+# The pointer is software-drawn (no_hardware_cursors), so captures include it:
+# hide it for the moment of the grab.
+cursor() { hyprctl -q eval "hl.config({ cursor = { invisible = $1 } })"; }
+cursor true; sleep 0.2                       # wait for a frame without it
+grim "$tmp" & grab=$!
+if [ "$mode" != output ]; then
+    hyprpicker -r -z >/dev/null 2>&1 & picker=$!  # the frozen view: also pointer-free
+    sleep 0.15
+fi
+cursor false
+wait "$grab" || exit 1
+
+case "$mode" in
+    window)
+        ws=$(hyprctl -j monitors | jq -r 'map(.activeWorkspace.id) | join(",")')
+        geom=$(hyprctl -j clients | jq -r --argjson ws "[$ws]" \
+            '.[] | select(.workspace.id as $w | $ws | index($w)) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' \
+            | slurp -r) ;;
+    output)
+        geom=$(hyprctl -j monitors | jq -r '.[] | select(.focused) | "\(.x),\(.y) \(.width / .scale | floor)x\(.height / .scale | floor)"') ;;
+    *)  geom=$(slurp -d) ;;
+esac
+[ -n "${picker:-}" ] && kill "$picker" 2>/dev/null; picker=
+[ -n "$geom" ] || exit 0
+
+mkdir -p "$dir"
+out="$dir/$(date +'%Y-%m-%d-%H%M%S').png"
+# Layout box of all monitors (logical px) maps onto the grim image (scaled px).
+read -r ox oy lw <<<"$(hyprctl -j monitors | jq -r \
+    '[min_by(.x).x, min_by(.y).y, (map(.x + .width / .scale) | max) - min_by(.x).x] | map(tostring) | join(" ")')"
+python -I - "$tmp" "$out" "$geom" "$ox" "$oy" "$lw" <<'EOF'
+import sys
+from PIL import Image
+src, dst, geom, ox, oy, lw = sys.argv[1:]
+xy, wh = geom.split()
+x, y = map(float, xy.split(",")); w, h = map(float, wh.split("x"))
+img = Image.open(src)
+s = img.width / float(lw)
+box = [round((x - float(ox)) * s), round((y - float(oy)) * s),
+       round((x - float(ox) + w) * s), round((y - float(oy) + h) * s)]
+img.crop(box).save(dst)
+EOF
+wl-copy --type image/png < "$out"
+notify-send -a Screenshot -i "$out" "Screenshot saved" "Copied to the clipboard · $(basename "$out")"

@@ -380,10 +380,10 @@ hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifs toggle"))
 hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifs focus"))
 
 -- Screenshots: saved to ~/Pictures/Screenshots and copied to the clipboard
--- Print: drag to select a region on a frozen frame (-z), saved + copied. Esc cancels.
-hl.bind("Print",               hl.dsp.exec_cmd("hyprshot -m region -z -o ~/Pictures/Screenshots"))
-hl.bind("SHIFT + Print",       hl.dsp.exec_cmd("hyprshot -m window -z -o ~/Pictures/Screenshots"))
-hl.bind(mainMod .. " + Print", hl.dsp.exec_cmd("hyprshot -m output -m active -o ~/Pictures/Screenshots"))
+-- Print: drag a region on a frozen frame (shot: no mouse pointer), saved + copied. Esc cancels.
+hl.bind("Print",               hl.dsp.exec_cmd("~/.local/bin/shot region"))
+hl.bind("SHIFT + Print",       hl.dsp.exec_cmd("~/.local/bin/shot window"))
+hl.bind(mainMod .. " + Print", hl.dsp.exec_cmd("~/.local/bin/shot output"))
 
 -- Lock now (hyprlock: password or fingerprint)
 hl.bind(mainMod .. " + Delete", hl.dsp.exec_cmd("loginctl lock-session"))   -- lock (away from home row on purpose)

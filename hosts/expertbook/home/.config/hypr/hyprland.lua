@@ -409,6 +409,14 @@ hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = tr
 
 -- Example window rules that are useful
 
+-- Workspaces 1-10 always live on the laptop panel. The "agent" workspace belongs
+-- to an invisible headless screen (~/.local/bin/agent-screen) that Claude uses to
+-- open and screenshot windows without touching your screen or focus.
+for i = 1, 10 do
+    hl.workspace_rule({ workspace = tostring(i), monitor = "eDP-1" })
+end
+hl.workspace_rule({ workspace = "name:agent", monitor = "AGENT", default = true })
+
 -- Named scratchpads: apps that live in their own special workspace.
 hl.window_rule({
     name  = "scratch-discord",

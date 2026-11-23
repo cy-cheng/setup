@@ -1,0 +1,31 @@
+#!/bin/bash
+# Called by hypridle after 30 min idle (see hypridle.conf):
+#   idle-hibernate start  - wait, checking every minute; hibernate once it's on battery
+#                           AND night time (23:00-09:00 local time). Daytime idle never hibernates.
+#   idle-hibernate stop   - activity resumed: cancel the waiter.
+pidfile="${XDG_RUNTIME_DIR:-/tmp}/idle-hibernate.pid"
+
+night() { local h=$((10#$(date +%H))); [ "$h" -ge 23 ] || [ "$h" -lt 9 ]; }
+on_battery() { [ "$(cat /sys/class/power_supply/AC0/online)" = 0 ]; }
+
+case "${1:-}" in
+start)
+    [ -e "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null && exit 0   # already waiting
+    (
+        echo $BASHPID > "$pidfile"
+        while :; do
+            if on_battery && night; then
+                rm -f "$pidfile"
+                systemctl hibernate
+                exit 0
+            fi
+            sleep 60
+        done
+    ) >/dev/null 2>&1 &
+    ;;
+stop)
+    [ -e "$pidfile" ] && kill "$(cat "$pidfile")" 2>/dev/null
+    rm -f "$pidfile"
+    ;;
+*) echo "usage: idle-hibernate start|stop" >&2; exit 2 ;;
+esac

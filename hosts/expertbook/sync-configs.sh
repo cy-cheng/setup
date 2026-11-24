@@ -48,6 +48,7 @@ FILES=(
     .local/bin/shot
     .local/bin/power-mode
     .local/bin/agent-screen
+    .local/bin/wifi-connect
     .local/bin/idle-hibernate
     .local/bin/start-fcitx
     .local/bin/nixie-focus

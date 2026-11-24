@@ -1,0 +1,60 @@
+#!/bin/bash
+# Wi-Fi connections the shell's Wi-Fi panel can't make through Quickshell.Networking.
+# Secrets come on stdin (never argv, which any process can read).
+#
+#   wifi-connect eap <ssid>      stdin: username\npassword   (WPA/WPA2/WPA3-Enterprise:
+#                                eduroam, campus 802.1X; PEAP + MSCHAPv2, what they nearly all use)
+#   wifi-connect hidden <ssid>   stdin: password (empty line = open network)
+#
+# Prints one line: "ok" or the error. Exit status 0 on success.
+set -uo pipefail
+mode=${1:-}; ssid=${2:-}
+[[ $mode =~ ^(eap|hidden)$ && -n $ssid ]] || { echo "usage: wifi-connect eap|hidden <ssid>" >&2; exit 2; }
+[[ $ssid == *$'\n'* ]] && { echo "bad network name"; exit 2; }
+
+if [[ $mode == eap ]]; then
+    IFS= read -r user; IFS= read -r pass
+    [[ -n $user && -n $pass ]] || { echo "Username and password are both required"; exit 2; }
+    settings=(
+        "set 802-11-wireless-security.key-mgmt wpa-eap"
+        "set 802-1x.eap peap"
+        "set 802-1x.phase2-auth mschapv2"
+        "set 802-1x.identity $user"
+        "set 802-1x.password $pass"
+    )
+else
+    IFS= read -r pass || true
+    settings=("set 802-11-wireless.hidden yes")
+    [[ -n $pass ]] && settings+=("set 802-11-wireless-security.key-mgmt wpa-psk" "set 802-11-wireless-security.psk $pass")
+fi
+
+# Replace any earlier profile for this network (e.g. one saved with a wrong password).
+while read -r uuid; do nmcli connection delete uuid "$uuid" >/dev/null 2>&1; done < <(
+    nmcli -g UUID,TYPE connection show | while IFS=: read -r u t; do
+        [[ $t == 802-11-wireless ]] && [[ $(nmcli -g 802-11-wireless.ssid connection show uuid "$u") == "$ssid" ]] && echo "$u"
+    done)
+
+# `nmcli connection edit` reads commands from stdin, so the secret stays off the command line.
+{
+    echo "set connection.id $ssid"
+    echo "set 802-11-wireless.ssid $ssid"
+    printf '%s\n' "${settings[@]}"
+    echo "save persistent"; echo "yes"; echo "quit"
+} | nmcli connection edit type wifi >/dev/null 2>&1
+
+nmcli -g connection.id connection show id "$ssid" >/dev/null 2>&1 || { echo "Couldn't save the network"; exit 1; }
+
+if err=$(nmcli --wait 45 connection up id "$ssid" 2>&1); then
+    echo ok
+else
+    # Keep nothing that doesn't work: a wrong password would otherwise retry forever.
+    nmcli connection delete id "$ssid" >/dev/null 2>&1
+    if [[ $err == *"Secrets were required"* || $err == *"802.1X"* || $err == *"supplicant"* ]]; then
+        echo "Wrong username or password"
+    elif [[ $err == *"No network with SSID"* ]]; then
+        echo "Network not found"
+    else
+        echo "Couldn't connect"
+    fi
+    exit 1
+fi

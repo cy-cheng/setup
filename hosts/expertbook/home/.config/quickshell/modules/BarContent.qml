@@ -226,18 +226,19 @@ Item {
             readonly property real frac: raw > 1 ? raw / 100 : raw
             readonly property string mode: ({ "power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance" })[Sys.powerProfile] ?? "Balanced"
             // Yellow whenever plugged in; the spark animation only while really charging (not when held at the 80 % limit).
-            readonly property bool isCharging: UPower.displayDevice?.state === UPowerDeviceState.Charging
+            // Sys.onBattery, not UPower's: the firmware says "charging" while powering a phone.
+            readonly property bool isCharging: !Sys.onBattery && UPower.displayDevice?.state === UPowerDeviceState.Charging
             // Plugged in and held at the charge limit: show a full ring (the tooltip keeps the real %).
-            value: (!UPower.onBattery && !isCharging) ? 1 : frac
+            value: (!Sys.onBattery && !isCharging) ? 1 : frac
             charging: isCharging
-            icon: isCharging ? "bolt" : !UPower.onBattery ? "power"
+            icon: isCharging ? "bolt" : !Sys.onBattery ? "power"
                 : ({ "power-saver": "eco", "balanced": "balance", "performance": "speed" })[Sys.powerProfile] ?? "balance"
-            tint: (isCharging || !UPower.onBattery) ? Theme.yellow
-                : UPower.onBattery && frac <= 0.15 ? Theme.red
+            tint: (isCharging || !Sys.onBattery) ? Theme.yellow
+                : Sys.onBattery && frac <= 0.15 ? Theme.red
                 : Sys.powerProfile === "power-saver" ? Theme.green
                 : Sys.powerProfile === "performance" ? Theme.amber : Theme.fg
             tip: "Battery " + Math.round(frac * 100) + "%"
-                 + (isCharging ? " · charging" : !UPower.onBattery ? " · plugged in, not charging" : "")
+                 + (isCharging ? " · charging" : !Sys.onBattery ? " · plugged in, not charging" : "")
                  + " · " + mode + " · click to change"
             onClicked: Sys.cycleProfile()
         }

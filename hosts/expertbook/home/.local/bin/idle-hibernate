@@ -6,7 +6,7 @@
 pidfile="${XDG_RUNTIME_DIR:-/tmp}/idle-hibernate.pid"
 
 night() { local h=$((10#$(date +%H))); [ "$h" -ge 23 ] || [ "$h" -lt 9 ]; }
-on_battery() { [ "$(cat /sys/class/power_supply/AC0/online)" = 0 ]; }
+on_battery() { ! "$HOME/.local/bin/on-ac"; }   # not AC0: firmware reports AC while powering a USB-C device
 
 case "${1:-}" in
 start)

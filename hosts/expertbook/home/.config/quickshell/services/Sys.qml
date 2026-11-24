@@ -69,20 +69,44 @@ Singleton {
     // Plug in: restore what you had. Manual changes in between still work.
     property string acProfile: ""
     property var lastOnBattery: null       // last real AC state; startup flicker is ignored
-    Connections {
-        target: UPower
-        function onOnBatteryChanged() {
-            if (!root.startChecked || UPower.onBattery === root.lastOnBattery) return;
-            root.lastOnBattery = UPower.onBattery;
-            root.applyPowerMode(UPower.onBattery);
-            if (UPower.onBattery) {
-                root.acProfile = root.powerProfile !== "power-saver" ? root.powerProfile : (root.acProfile || "balanced");
-                root.setProfileTo("power-saver");
-            } else {
-                root.setProfileTo(root.acProfile || "balanced");
-            }
+    onOnBatteryChanged: {
+        if (!root.startChecked || root.onBattery === root.lastOnBattery) return;
+        root.lastOnBattery = root.onBattery;
+        root.applyPowerMode(root.onBattery);
+        if (root.onBattery) {
+            root.acProfile = root.powerProfile !== "power-saver" ? root.powerProfile : (root.acProfile || "balanced");
+            root.setProfileTo("power-saver");
+        } else {
+            root.setProfileTo(root.acProfile || "balanced");
         }
     }
+
+    // ── On battery? ──
+    // Not UPower.onBattery: the firmware claims "AC online, charging" whenever any USB-C
+    // device is attached (an iPhone the laptop is powering), while the battery drains.
+    // ~/.local/bin/on-ac decides from the USB-C power role instead.
+    property bool onBattery: UPower.onBattery   // until on-ac has answered
+    property bool acKnown: false
+    Process {
+        id: acCheck
+        command: [Quickshell.env("HOME") + "/.local/bin/on-ac"]
+        onExited: code => {
+            root.onBattery = code !== 0;
+            if (!root.acKnown) { root.acKnown = true; getProfile.running = true; }
+        }
+    }
+    function recheckAc() { if (acCheck.running) acDebounce.restart(); else acCheck.running = true; }
+    Timer { id: acDebounce; interval: 800; onTriggered: root.recheckAc() }
+    Timer { interval: 60000; running: true; repeat: true; onTriggered: root.recheckAc() }
+    Connections { target: UPower; function onOnBatteryChanged() { acDebounce.restart(); } }
+    Process { // plug / unplug events
+        id: acEvents
+        running: true
+        command: ["udevadm", "monitor", "--kernel", "--subsystem-match=typec", "--subsystem-match=power_supply"]
+        stdout: SplitParser { onRead: acDebounce.restart() }
+        onExited: acEventsRestart.start()
+    }
+    Timer { id: acEventsRestart; interval: 5000; onTriggered: acEvents.running = true }
 
     // ── Power profile ──
     Process {
@@ -92,11 +116,11 @@ Singleton {
             onStreamFinished: {
                 root.powerProfile = text.trim() || root.powerProfile;
                 // Starting on battery (login, resume): apply the battery rule once.
-                if (!root.startChecked && (UPower.displayDevice?.ready ?? false)) {
+                if (!root.startChecked && root.acKnown) {
                     root.startChecked = true;
-                    root.lastOnBattery = UPower.onBattery;
-                    root.applyPowerMode(UPower.onBattery);
-                    if (UPower.onBattery && root.powerProfile !== "power-saver") {
+                    root.lastOnBattery = root.onBattery;
+                    root.applyPowerMode(root.onBattery);
+                    if (root.onBattery && root.powerProfile !== "power-saver") {
                         root.acProfile = root.powerProfile;
                         root.setProfileTo("power-saver");
                     }
@@ -159,7 +183,7 @@ Singleton {
             if (tick % 5 === 0 && !getProfile.running) getProfile.running = true;
         }
     }
-    Component.onCompleted: { getProfile.running = true; procStat.reload(); }
+    Component.onCompleted: { getProfile.running = true; procStat.reload(); recheckAc(); }
 
     IpcHandler { // qs ipc call awake toggle
         target: "awake"

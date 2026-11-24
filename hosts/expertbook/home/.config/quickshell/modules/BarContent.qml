@@ -167,16 +167,24 @@ Item {
 
         Icon {
             readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
-            // A VPN that is up replaces the Wi-Fi glyph with a lock, in amber.
-            text: Vpn.anyActive ? "vpn_lock" : online ? "wifi" : "wifi_off"
-            color: Vpn.anyActive ? Theme.amber : online ? Theme.fg : Theme.red
+            readonly property bool phone: Vpn.metered          // USB tether or the phone's hotspot
+            readonly property bool wired: Vpn.primaryType === "802-3-ethernet"
+            // Phone internet gets a phone glyph; a VPN that is up turns it amber (lock glyph otherwise).
+            text: phone ? "smartphone" : Vpn.anyActive ? "vpn_lock" : wired ? "lan" : online ? "wifi" : "wifi_off"
+            color: Vpn.anyActive ? Theme.amber : (online || phone || wired) ? Theme.fg : Theme.red
             MouseArea { anchors.fill: parent; onClicked: Panels.toggle("wifi") }
             Tip {
                 text: {
-                    let t = Networking.wifiEnabled ? "Wi-Fi · not connected" : "Wi-Fi off";
+                    let wifi = "";
                     for (const d of Networking.devices.values)
                         if (d.type === DeviceType.Wifi)
-                            for (const n of d.networks.values) if (n.connected) t = "Wi-Fi · " + n.name;
+                            for (const n of d.networks.values) if (n.connected) wifi = n.name;
+                    let t = parent.phone && parent.wired ? "Phone over USB · metered"
+                          : parent.phone ? "Phone hotspot · " + wifi + " · metered"
+                          : parent.wired ? "Wired"
+                          : wifi ? "Wi-Fi · " + wifi
+                          : Networking.wifiEnabled ? "Wi-Fi · not connected" : "Wi-Fi off";
+                    if (parent.phone && parent.wired && wifi) t += " (Wi-Fi " + wifi + " standing by)";
                     if (Vpn.anyActive) t += " · VPN " + Vpn.activeOnes.map(c => c.name).join(", ");
                     return t;
                 }

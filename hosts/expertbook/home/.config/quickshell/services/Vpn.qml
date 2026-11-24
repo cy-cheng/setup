@@ -22,7 +22,28 @@ Singleton {
         proc.running = true;
     }
 
-    function refresh() { if (!lister.running) lister.running = true; else again = true; }
+    function refresh() {
+        if (!lister.running) lister.running = true; else again = true;
+        if (!primary.running) primary.running = true;
+    }
+
+    // The connection actually carrying traffic: is it metered (phone tether / hotspot), and what kind?
+    property bool metered: false
+    property string primaryType: ""     // "802-11-wireless" | "802-3-ethernet" | "vpn" | ""
+    Process {
+        id: primary
+        command: ["busctl", "--system", "get-property", "org.freedesktop.NetworkManager",
+                  "/org/freedesktop/NetworkManager", "org.freedesktop.NetworkManager",
+                  "Metered", "PrimaryConnectionType"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.trim().split("\n");          // u 1 / s "802-3-ethernet"
+                const m = parseInt((lines[0] ?? "").split(" ")[1]);
+                root.metered = m === 1 || m === 3;               // yes / guess-yes
+                root.primaryType = ((lines[1] ?? "").match(/"(.*)"/) ?? ["", ""])[1];
+            }
+        }
+    }
     property bool again: false
 
     Process {

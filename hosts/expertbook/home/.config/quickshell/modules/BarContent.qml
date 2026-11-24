@@ -169,9 +169,9 @@ Item {
             readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
             readonly property bool phone: Vpn.metered          // USB tether or the phone's hotspot
             readonly property bool wired: Vpn.primaryType === "802-3-ethernet"
-            // Phone internet gets a phone glyph; a VPN that is up turns it amber (lock glyph otherwise).
+            // Phone internet: amber phone glyph (metered). A VPN that is up is amber too (lock glyph otherwise).
             text: phone ? "smartphone" : Vpn.anyActive ? "vpn_lock" : wired ? "lan" : online ? "wifi" : "wifi_off"
-            color: Vpn.anyActive ? Theme.amber : (online || phone || wired) ? Theme.fg : Theme.red
+            color: (Vpn.anyActive || phone) ? Theme.amber : (online || wired) ? Theme.fg : Theme.red
             MouseArea { anchors.fill: parent; onClicked: Panels.toggle("wifi") }
             Tip {
                 text: {

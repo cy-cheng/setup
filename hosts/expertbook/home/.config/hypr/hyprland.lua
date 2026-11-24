@@ -68,7 +68,7 @@ local menu = "qs ipc call panels toggle launcher"   -- Nixie launcher (apps, cal
 hl.on("hyprland.start", function ()
     -- Restore the saved software brightness + warm tint
     hl.exec_cmd("~/.local/bin/brightness apply")
-    -- Idle: dim 2.5 min, lock 5 min, screen off 5.5 min, suspend 15 min (hypridle.conf)
+    -- Idle: lock + screen off 5 min, hibernate after 30 min on battery at night (hypridle.conf)
     hl.exec_cmd("hypridle")
     -- Password prompts for privileged actions: the Nixie shell is the polkit agent (PolkitDialog.qml)
     -- hl.exec_cmd("systemctl --user start hyprpolkitagent")   -- replaced by the shell

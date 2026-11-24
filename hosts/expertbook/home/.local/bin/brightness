@@ -33,7 +33,10 @@ esac
 ((level > max)) && level=$max
 ((save)) && echo "$level" >"$state"
 
-brightnessctl -q set "${level}%"
+# Only touch the backlight when it's actually different: a redundant write on
+# wake (dpms on) made the panel flash a second time.
+cur=$(brightnessctl -m | cut -d, -f4); cur=${cur%\%}
+[[ $cur == "$level" ]] || brightnessctl -q set "${level}%"
 
 # Warm tint only (no dimming). Rewritten on `apply` so the file always matches.
 if [[ ${1:-} == apply ]] || ! grep -q "vec3($tint);" "$shader" 2>/dev/null; then

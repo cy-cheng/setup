@@ -74,5 +74,6 @@ npm pnpm (or via nvm/mise), ruby, go, julia (juliaup), platformio
 ## Timezone (2026-11-22)
 - automatic-timezoned/GeoClue failed: GeoClue keeps clients "waiting for agent" without a GNOME/KDE location agent, even with an empty agent whitelist. Reverted and uninstalled.
 - Now: NetworkManager dispatcher `install/timezone/90-auto-timezone` looks up the timezone of the physical uplink's IP (ipinfo.io, fallback ipwho.is; curl --interface so the EAILab VPN doesn't skew it). Verified UTC -> Asia/Taipei.
+- Phone internet: `usbmuxd` (iPhone USB tethering via ipheth; phone must Trust the laptop + Personal Hotspot on). NM profile `nmcli connection add type ethernet con-name "iPhone USB" match.driver ipheth connection.metered yes` (wired metric beats Wi-Fi, so USB is preferred when plugged). Phone Wi-Fi hotspot "Brine" set `connection.metered yes`.
 - Quickshell caches the timezone; Sys.qml tracks `date +%z` every 30 s and Sys.zoned() shifts the bar/dashboard/background/notification clocks.
 - Removed unused packages: rofi, hyprpolkitagent, geoclue, automatic-timezoned, AUR -debug packages and leftover build tools (meson, gtk-doc, gobject-introspection, asar, python build tools).

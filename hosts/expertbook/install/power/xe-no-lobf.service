@@ -1,0 +1,15 @@
+[Unit]
+Description=Turn off eDP "link off between frames" (LOBF) on the xe driver
+# After s2idle resume the panel link fails its check with LOBF on, and the driver
+# retrains it twice: the screen flashes off/on 2-3 times (2026-11-25, BIOS .312,
+# kernel 7.3.5). There is no module parameter for it, only this debugfs switch.
+ConditionPathExists=/sys/kernel/debug/dri/0000:00:02.0/eDP-1/i915_edp_lobf_debug
+After=systemd-modules-load.service sys-kernel-debug.mount
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo 1 > /sys/kernel/debug/dri/0000:00:02.0/eDP-1/i915_edp_lobf_debug'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

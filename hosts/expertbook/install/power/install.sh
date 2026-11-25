@@ -11,6 +11,7 @@ install -Dm644 50-lid-sleep.conf /etc/systemd/logind.conf.d/50-lid-sleep.conf
 rm -f /etc/systemd/logind.conf.d/50-lid-lock.conf     # old: lid only locked, back when sleep hung
 install -Dm644 90-sleep.conf /etc/systemd/sleep.conf.d/90-sleep.conf
 install -Dm755 touchpad-wake /usr/lib/systemd/system-sleep/touchpad-wake
+install -Dm755 fprintd-reset /usr/lib/systemd/system-sleep/fprintd-reset
 install -Dm644 xe-no-lobf.service /etc/systemd/system/xe-no-lobf.service
 install -Dm644 upower-hibernate.conf /etc/UPower/UPower.conf.d/90-hibernate.conf
 systemctl daemon-reload

@@ -1,0 +1,10 @@
+#!/bin/sh
+# systemd-sleep hook: fprintd keeps the fingerprint sensor (FocalTech, focaltech_moc)
+# claimed across sleep, and after resume it fails ("Cannot run while suspended", then
+# "device sent more data than requested") until restarted. Stop it before sleep and
+# start it again after. Same fix as burakgon/asus-expertbook-linux#32.
+case "$1" in
+pre)  systemctl stop fprintd.service ;;
+post) systemctl start --no-block fprintd.service ;;
+esac
+exit 0

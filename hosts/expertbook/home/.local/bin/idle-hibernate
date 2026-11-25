@@ -1,14 +1,13 @@
 #!/bin/bash
 # Called by hypridle after 30 min idle (see hypridle.conf):
 #   idle-hibernate start  - wait, checking every minute; hibernate once it's on battery
-#                           AND (night time 23:00-09:00, OR the lid is closed). Daytime idle
-#                           with the lid open never hibernates. (Lid rule added 2026-11-25:
-#                           closed in a bag all afternoon, it drained 31% -> 0% at ~4 W.)
+#                           AND night time (23:00-09:00). Daytime idle never hibernates:
+#                           ~/.local/bin/lid pauses apps instead (the stand-in for sleep,
+#                           which hangs here). The shell still hibernates at <= 4 % when away.
 #   idle-hibernate stop   - activity resumed: cancel the waiter.
 pidfile="${XDG_RUNTIME_DIR:-/tmp}/idle-hibernate.pid"
 
 night() { local h=$((10#$(date +%H))); [ "$h" -ge 23 ] || [ "$h" -lt 9 ]; }
-lid_closed() { grep -qs closed /proc/acpi/button/lid/*/state; }
 on_battery() { ! "$HOME/.local/bin/on-ac"; }   # not AC0: firmware reports AC while powering a USB-C device
 
 case "${1:-}" in
@@ -17,7 +16,7 @@ start)
     (
         echo $BASHPID > "$pidfile"
         while :; do
-            if on_battery && { night || lid_closed; }; then
+            if on_battery && night; then
                 rm -f "$pidfile"
                 systemctl hibernate
                 exit 0

@@ -6,8 +6,11 @@
 #               Terminals and the shell keep running, so a build or download in a
 #               terminal carries on. Nothing is paused while audio is playing
 #               (music, a call on headphones).
+#   lid rest    the same without the lid: hypridle's 5-min idle screen-off. This is
+#               the daytime stand-in for sleep, which hangs on this machine; at night
+#               idle-hibernate takes over after 30 min.
 #   lid open    thaw everything, screen on.
-# Docked (an external monitor attached) the lid does nothing: you're using it.
+# Docked (an external monitor attached) closing the lid does nothing: you're using it.
 set -u
 state="${XDG_RUNTIME_DIR:-/tmp}/lid-frozen"
 
@@ -26,16 +29,18 @@ app_pids() {
 }
 screen() { qs ipc call power screen "$1" >/dev/null 2>&1; }
 
-case "${1:-}" in
-close)
-    external_monitor && exit 0
+rest() {
     hyprctl dispatch 'hl.dsp.dpms({action = "off"})' >/dev/null
     screen off
     if on_battery && ! audio_playing; then
-        app_pids > "$state"
+        app_pids >> "$state"
         xargs -r kill -STOP < "$state" 2>/dev/null
     fi
-    ;;
+}
+
+case "${1:-}" in
+close) external_monitor || rest ;;
+rest)  rest ;;
 open)
     if [ -e "$state" ]; then
         xargs -r kill -CONT < "$state" 2>/dev/null
@@ -44,5 +49,5 @@ open)
     hyprctl dispatch 'hl.dsp.dpms({action = "on"})' >/dev/null
     screen on
     ;;
-*) echo "usage: lid close|open" >&2; exit 2 ;;
+*) echo "usage: lid close|rest|open" >&2; exit 2 ;;
 esac

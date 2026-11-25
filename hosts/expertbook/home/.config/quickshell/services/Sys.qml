@@ -71,6 +71,7 @@ Singleton {
     property string acProfile: ""
     property var lastOnBattery: null       // last real AC state; startup flicker is ignored
     onOnBatteryChanged: {
+        root.checkBattery();
         if (!root.startChecked || root.onBattery === root.lastOnBattery) return;
         root.lastOnBattery = root.onBattery;
         root.applyPowerMode(root.onBattery);
@@ -108,6 +109,40 @@ Singleton {
         onExited: acEventsRestart.start()
     }
     Timer { id: acEventsRestart; interval: 5000; onTriggered: acEvents.running = true }
+
+    // ── Low battery ──
+    // 10 %: notice. 4 %: warning. At 4 % or below it hibernates as soon as you're away
+    // (screen off: idle or lid closed); while you keep working it lets you go on, down
+    // to a last-resort hibernate at 1 %. Done here, not by UPower: UPower thinks it's
+    // on AC whenever a phone is attached, so it would never act then. UPower's own
+    // action (Hibernate at 1 %, install/power/upower-hibernate.conf) is the backup.
+    readonly property real batteryPct: (UPower.displayDevice?.percentage ?? 1) * 100
+    property int batteryNotified: 100   // lowest threshold already announced
+    property bool hibernating: false
+    function notifyBattery(urgency, title, body) {
+        Quickshell.execDetached(["notify-send", "-u", urgency, "-a", "Battery", "-i", "battery-caution", title, body]);
+    }
+    function checkBattery() {
+        if (!root.acKnown || !root.onBattery) { root.batteryNotified = 100; return; }
+        const p = Math.round(root.batteryPct);
+        if (p <= 0 || root.hibernating) return;    // 0: no reading yet
+        if (p <= 1 || (p <= 4 && root.screenOff)) {
+            root.hibernating = true;
+            hibernateReset.restart();
+            Quickshell.execDetached(["systemctl", "hibernate"]);
+        } else if (p <= 4 && root.batteryNotified > 4) {
+            root.batteryNotified = 4;
+            root.notifyBattery("critical", "Battery " + p + "% — plug in",
+                "It hibernates when you step away (idle screen-off or lid closed), or at 1% regardless.");
+        } else if (p <= 10 && root.batteryNotified > 10) {
+            root.batteryNotified = 10;
+            root.notifyBattery("normal", "Battery " + p + "%", "Plug in soon.");
+        }
+    }
+    Timer { id: hibernateReset; interval: 120000; onTriggered: root.hibernating = false }   // after resume
+    onBatteryPctChanged: checkBattery()
+    onScreenOffChanged: checkBattery()
+    onAcKnownChanged: checkBattery()
 
     // ── Power profile ──
     Process {
@@ -195,5 +230,6 @@ Singleton {
         function cycle(): void { root.cycleProfile(); }
         function set(profile: string): void { root.setProfileTo(profile); }
         function screen(state: string): void { root.screenOff = state === "off"; }   // from ~/.local/bin/lid, hypridle
+        function battery(): string { return Math.round(root.batteryPct) + "% onBattery=" + root.onBattery + " screenOff=" + root.screenOff; }
     }
 }

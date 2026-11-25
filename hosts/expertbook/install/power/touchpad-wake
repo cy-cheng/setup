@@ -1,0 +1,9 @@
+#!/bin/sh
+# systemd-sleep hook: the touchpad may wake the laptop, except with the lid closed
+# (in a bag it sends false wakes: seen 5-20 s into sleep on 2026-11-25).
+TP=/sys/bus/i2c/devices/i2c-ASCP1D80:00/power/wakeup
+[ -e "$TP" ] || exit 0
+case "$1" in
+pre)  if grep -qs closed /proc/acpi/button/lid/*/state; then echo disabled > "$TP"; else echo enabled > "$TP"; fi ;;
+post) echo enabled > "$TP" ;;
+esac

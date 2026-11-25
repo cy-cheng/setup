@@ -232,7 +232,7 @@ Singleton {
         target: "power"
         function cycle(): void { root.cycleProfile(); }
         function set(profile: string): void { root.setProfileTo(profile); }
-        function screen(state: string): void { root.screenOff = state === "off"; }   // from ~/.local/bin/lid, hypridle
+        function screen(state: string): void { root.screenOff = state === "off"; }   // from hypridle (screen off / on)
         function battery(): string { return Math.round(root.batteryPct) + "% onBattery=" + root.onBattery + " screenOff=" + root.screenOff; }
     }
 }

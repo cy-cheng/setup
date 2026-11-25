@@ -6,8 +6,8 @@ import Quickshell.Hyprland
 import qs.services
 
 // Power / session menu (power key, or the power icon in the bar).
-// Lock · Hibernate · Log out · Reboot · Power off. The last three need a second
-// press within 5 s. ←/→ or 1–5 to choose, Enter to run, Esc to close.
+// Lock · Sleep · Hibernate · Log out · Reboot · Power off. The last three need a second
+// press within 5 s. ←/→ or 1–6 to choose, Enter to run, Esc to close.
 PanelWindow {
     id: menu
     required property var modelData
@@ -27,8 +27,9 @@ PanelWindow {
 
     readonly property var actions: [
         { label: "Lock",      icon: "lock",               confirm: false, cmd: ["loginctl", "lock-session"] },
-        // Hibernate instead of Suspend: s2idle never resumes on this laptop (hard reboot);
-        // hibernate saves the session to /swapfile and powers off (power button restores).
+        // Sleep works since BIOS .312 (2026-11-25). Hibernate saves the session to
+        // /swapfile and powers off (power button restores).
+        { label: "Sleep",     icon: "bedtime",            confirm: false, cmd: ["sh", "-c", "loginctl lock-session; sleep 1; systemctl suspend"] },
         { label: "Hibernate", icon: "downloading",        confirm: false, cmd: ["sh", "-c", "loginctl lock-session; sleep 1; systemctl hibernate"] },
         { label: "Log out",   icon: "logout",             confirm: true,  cmd: ["hyprctl", "dispatch", "hl.dsp.exit()"] },
         { label: "Reboot",    icon: "restart_alt",        confirm: true,  cmd: ["systemctl", "reboot"] },

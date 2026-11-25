@@ -1,0 +1,48 @@
+#!/bin/bash
+# Lid switch handler (bound in hyprland.lua):
+#   lid close   screen off now (not after the 5-min idle timer); on battery, also
+#               pause every app that has a window (Discord, browser, editor...,
+#               with all their helper processes) so they stop waking the CPU.
+#               Terminals and the shell keep running, so a build or download in a
+#               terminal carries on. Nothing is paused while audio is playing
+#               (music, a call on headphones).
+#   lid open    thaw everything, screen on.
+# Docked (an external monitor attached) the lid does nothing: you're using it.
+set -u
+state="${XDG_RUNTIME_DIR:-/tmp}/lid-frozen"
+
+external_monitor() { hyprctl -j monitors 2>/dev/null | grep -q '"name": "\(DP\|HDMI\)'; }
+on_battery() { ! "$HOME/.local/bin/on-ac"; }
+audio_playing() { pactl list sink-inputs 2>/dev/null | grep -q 'Corked: no'; }
+# Window owners (minus terminals) and all their descendants.
+app_pids() {
+    local roots; roots=$(hyprctl -j clients | jq -r '.[] | select(.class | test("^(kitty|foot|Alacritty|org.wezfurlong.wezterm)$") | not) | .pid' | sort -u)
+    [ -n "$roots" ] || return 0
+    ps -e -o pid=,ppid= | awk -v r="$roots" '
+        BEGIN { n = split(r, a, "\n"); for (i = 1; i <= n; i++) keep[a[i]] = 1 }
+        { par[$1] = $2; pids[NR] = $1 }
+        END { for (i in pids) { p = pids[i]; q = p
+                while (q > 1) { if (q in keep) { print p; break } q = par[q] } } }'
+}
+screen() { qs ipc call power screen "$1" >/dev/null 2>&1; }
+
+case "${1:-}" in
+close)
+    external_monitor && exit 0
+    hyprctl dispatch 'hl.dsp.dpms({action = "off"})' >/dev/null
+    screen off
+    if on_battery && ! audio_playing; then
+        app_pids > "$state"
+        xargs -r kill -STOP < "$state" 2>/dev/null
+    fi
+    ;;
+open)
+    if [ -e "$state" ]; then
+        xargs -r kill -CONT < "$state" 2>/dev/null
+        rm -f "$state"
+    fi
+    hyprctl dispatch 'hl.dsp.dpms({action = "on"})' >/dev/null
+    screen on
+    ;;
+*) echo "usage: lid close|open" >&2; exit 2 ;;
+esac

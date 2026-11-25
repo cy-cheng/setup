@@ -358,6 +358,11 @@ hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
+-- Lid: screen off at once and, on battery, freeze launched apps until it opens
+-- (~/.local/bin/lid). Suspend stays off: s2idle never resumes on this machine.
+hl.bind("switch:on:Lid Switch",  hl.dsp.exec_cmd("~/.local/bin/lid close"), { locked = true })
+hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd("~/.local/bin/lid open"),  { locked = true })
+
 -- Laptop multimedia keys for volume and LCD brightness
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })

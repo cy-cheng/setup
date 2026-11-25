@@ -16,6 +16,7 @@ Singleton {
     property real memTotalGiB: 0
     property real brightness: 0.6               // 0..1 (from ~/.local/bin/brightness state)
     property bool keepAwake: false              // holds an idle inhibitor (hypridle honours it)
+    property bool screenOff: false              // lid closed / idle DPMS off: looping animations pause
 
     // ── Timezone ──
     // Qt caches the timezone at start-up, so a later change (travel; the NetworkManager
@@ -193,5 +194,6 @@ Singleton {
         target: "power"
         function cycle(): void { root.cycleProfile(); }
         function set(profile: string): void { root.setProfileTo(profile); }
+        function screen(state: string): void { root.screenOff = state === "off"; }   // from ~/.local/bin/lid, hypridle
     }
 }

@@ -50,6 +50,7 @@ FILES=(
     .local/bin/agent-screen
     .local/bin/wifi-connect
     .local/bin/on-ac
+    .local/bin/lid
     .local/bin/idle-hibernate
     .local/bin/start-fcitx
     .local/bin/nixie-focus

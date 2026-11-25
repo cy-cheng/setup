@@ -40,7 +40,7 @@ Item {
         border.color: tile.needs ? Theme.amber : (tile.focused ? Theme.line : "transparent")
         border.width: tile.needs ? 1.5 : 1
         SequentialAnimation on border.color {
-            running: tile.needs
+            running: tile.needs && !Sys.screenOff
             loops: Animation.Infinite
             ColorAnimation { to: Theme.amberDim; duration: 900; easing.type: Easing.InOutSine }
             ColorAnimation { to: Theme.amber; duration: 900; easing.type: Easing.InOutSine }

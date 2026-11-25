@@ -43,7 +43,7 @@ Item {
     // like energy flowing in. Head is white-hot, tail takes the ring colour.
     property real orbit: 0
     NumberAnimation on orbit {
-        running: ring.charging && ring.visible
+        running: ring.charging && ring.visible && !Sys.screenOff
         from: 0; to: 1; duration: 1800; loops: Animation.Infinite
         onRunningChanged: if (!running) ring.orbit = 0
     }

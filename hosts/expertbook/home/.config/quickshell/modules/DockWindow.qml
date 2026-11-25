@@ -112,7 +112,7 @@ Scope {
             radius: 1.5
             color: root.urgent ? Theme.amber : Theme.muted
             SequentialAnimation on opacity {
-                running: root.urgent
+                running: root.urgent && !Sys.screenOff
                 loops: Animation.Infinite
                 NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }

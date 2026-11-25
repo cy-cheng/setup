@@ -67,7 +67,7 @@ npm pnpm (or via nvm/mise), ruby, go, julia (juliaup), platformio
 - Reminder list: try Zed; projector/monitor config; agent session manager across machines.
 
 ## Sleep → hibernate (2026-11-22)
-- s2idle suspend never resumed (log stops at `PM: suspend entry (s2idle)`; hard reboot). BIOS B9406CAA.304 is the latest.
+- s2idle suspend never resumed (log stops at `PM: suspend entry (s2idle)`; hard reboot). BIOS B9406CAA.304 is the latest. 2026-11-25: deep (S3) hangs too, even with an RTC alarm; pm_test freezer/devices pass, so it is the platform/firmware step, not a driver. Hibernate stays.
 - Replaced with hibernate: `install/hibernate-setup.sh` (32 GB /swapfile, GRUB resume=/resume_offset=). Verified: `systemctl hibernate` restores the session.
 - hypridle: screen off 2 min on battery / 5.5 min on AC, lock 5 min; after 30 min idle ~/.local/bin/idle-hibernate waits until it is on battery AND night (23:00-09:00) and then hibernates — never during the day. Power menu: Hibernate instead of Suspend.
 

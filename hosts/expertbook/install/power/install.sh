@@ -7,6 +7,7 @@ install -Dm644 power-profile-bridge.service /etc/systemd/system/power-profile-br
 install -Dm644 ppd-block-platform.conf /etc/systemd/system/power-profiles-daemon.service.d/block-platform.conf
 install -Dm644 90-battery.conf /etc/sysctl.d/90-battery.conf
 install -Dm644 wifi-powersave.conf /etc/NetworkManager/conf.d/wifi-powersave.conf
+install -Dm644 upower-hibernate.conf /etc/UPower/UPower.conf.d/90-hibernate.conf
 systemctl daemon-reload
 systemctl disable power-profile-bridge.service 2>/dev/null || true
 systemctl enable --now power-profile-bridge.service
@@ -17,4 +18,5 @@ sysctl -q --system
 rm -f /etc/udev/rules.d/50-runtime-pm.rules
 udevadm control --reload
 nmcli general reload conf 2>/dev/null || true
+systemctl restart upower.service
 echo done

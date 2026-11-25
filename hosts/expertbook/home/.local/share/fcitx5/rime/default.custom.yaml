@@ -1,0 +1,8 @@
+patch:
+  "menu/page_size": 25
+  "ascii_composer/switch_key/Shift_L": noop
+  "ascii_composer/switch_key/Shift_R": noop
+  # 只留注音·臺灣正體，並關掉方案選單熱鍵 (Ctrl+` / F4)，避免誤切
+  schema_list:
+    - schema: bopomofo_tw
+  "switcher/hotkeys": []

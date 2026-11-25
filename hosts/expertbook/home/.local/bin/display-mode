@@ -1,0 +1,65 @@
+#!/bin/bash
+# Switch how external screens (monitors, projectors) are used, like Win+P.
+# Usage: display-mode [menu|extend|mirror|external|internal]
+set -euo pipefail
+
+internal=eDP-1
+# Connected outputs other than the laptop panel (including currently disabled ones).
+mapfile -t externals < <(hyprctl monitors all -j | python3 -I -c '
+import json, sys
+for m in json.load(sys.stdin):
+    if m["name"] != "eDP-1":
+        print(m["name"])')
+
+rule() { hyprctl eval "hl.monitor({ $1 })" >/dev/null; }
+internal_on() { rule "output = \"$internal\", mode = \"preferred\", position = \"0x0\", scale = 2"; }
+
+mode="${1:-menu}"
+if [ "$mode" = menu ]; then
+    if [ ${#externals[@]} -eq 0 ]; then
+        notify-send -a Display "No external screen" "Plug in a monitor or projector first."
+        exit 0
+    fi
+    mode=$(printf '%s\n' "Extend" "Mirror" "External only" "Laptop only" |
+        rofi -dmenu -i -p "Display (${externals[*]})" | tr 'A-Z' 'a-z')
+    case "$mode" in
+        "external only") mode=external ;;
+        "laptop only") mode=internal ;;
+        "") exit 0 ;;
+    esac
+fi
+
+case "$mode" in
+    extend)
+        internal_on
+        for o in "${externals[@]}"; do
+            rule "output = \"$o\", mode = \"preferred\", position = \"auto-right\", scale = \"auto\""
+        done ;;
+    mirror)
+        internal_on
+        for o in "${externals[@]}"; do
+            rule "output = \"$o\", mode = \"preferred\", position = \"auto\", scale = \"auto\", mirror = \"$internal\""
+        done ;;
+    external)
+        [ ${#externals[@]} -gt 0 ] || { notify-send -a Display "No external screen" ""; exit 1; }
+        for o in "${externals[@]}"; do
+            rule "output = \"$o\", mode = \"preferred\", position = \"auto\", scale = \"auto\""
+        done
+        rule "output = \"$internal\", disabled = true"
+        # Safety: if the external screen goes away, bring the laptop panel back.
+        setsid -f bash -c '
+            while sleep 2; do
+                names=$(hyprctl monitors -j | python3 -I -c "import json,sys; print(\" \".join(m[\"name\"] for m in json.load(sys.stdin)))")
+                case " $names " in *" '"$internal"' "*) exit 0 ;; esac  # panel back on: done
+                if [ -z "$names" ]; then
+                    hyprctl eval "hl.monitor({ output = \"'"$internal"'\", mode = \"preferred\", position = \"0x0\", scale = 2 })"
+                    exit 0
+                fi
+            done' >/dev/null 2>&1 ;;
+    internal)
+        internal_on
+        for o in "${externals[@]}"; do rule "output = \"$o\", disabled = true"; done ;;
+    *) echo "usage: display-mode [menu|extend|mirror|external|internal]" >&2; exit 2 ;;
+esac
+
+notify-send -a Display "Display: $mode" "${externals[*]:-laptop only}"

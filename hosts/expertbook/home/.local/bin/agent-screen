@@ -1,0 +1,37 @@
+#!/bin/bash
+# A virtual, invisible screen for Claude to test UI on without touching yours.
+# It sits far outside your monitor layout (the pointer can't reach it) and only
+# holds the workspace "agent"; workspaces 1-10 are pinned to the laptop panel.
+#
+#   agent-screen up                 create it (no-op if it exists)
+#   agent-screen run <cmd...>       start a program on it (silently, no focus change)
+#   agent-screen shot [file.png]    capture it (default: $XDG_RUNTIME_DIR/agent-screen.png)
+#   agent-screen down               close its windows and remove it
+set -euo pipefail
+name=AGENT
+exists() { hyprctl monitors -j | jq -e --arg n "$name" 'any(.[]; .name == $n)' >/dev/null; }
+
+case "${1:-}" in
+    up)
+        exists && exit 0
+        hyprctl -q eval "hl.monitor({ output = \"$name\", mode = \"2880x1800@60\", position = \"20000x20000\", scale = 2 })"
+        hyprctl -q output create headless "$name"
+        ;;
+    run)
+        shift; "$0" up
+        hyprctl -q dispatch "hl.dsp.exec_cmd(\"[workspace name:agent silent] $*\")"
+        ;;
+    shot)
+        out=${2:-${XDG_RUNTIME_DIR:-/tmp}/agent-screen.png}
+        exists || { echo "agent screen is not up" >&2; exit 1; }
+        grim -o "$name" "$out" && echo "$out"
+        ;;
+    down)
+        exists || exit 0
+        hyprctl clients -j | jq -r '.[] | select(.workspace.name == "agent") | .address' |
+            while read -r a; do hyprctl -q dispatch "hl.dsp.window.close({ window = \"address:$a\" })" || true; done
+        sleep 0.5
+        hyprctl -q output remove "$name"
+        ;;
+    *) echo "usage: agent-screen up|run <cmd>|shot [file]|down" >&2; exit 2 ;;
+esac

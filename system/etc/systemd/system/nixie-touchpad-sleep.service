@@ -1,0 +1,15 @@
+# Rebinds the touchpad after every resume, when it most often stops responding.
+# Recovery runs in its own unit so it never delays resume.
+[Unit]
+Description=Recover the built-in touchpad after system sleep
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-/usr/local/libexec/nixie-touchpad-recover pre-sleep
+ExecStop=/usr/bin/systemctl --no-block start nixie-touchpad-recover@resume.service
+
+[Install]
+WantedBy=sleep.target

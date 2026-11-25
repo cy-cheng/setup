@@ -1,0 +1,10 @@
+[Unit]
+Description=Recover the built-in touchpad when the kernel reports I2C errors
+
+[Service]
+ExecStart=/usr/local/libexec/nixie-touchpad-recover watch
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

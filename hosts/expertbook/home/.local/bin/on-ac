@@ -1,0 +1,30 @@
+#!/bin/bash
+# Exit 0 if the laptop is really on external power, 1 if it's on battery.
+#
+# Don't trust AC0/online (or UPower.onBattery, which comes from it): this ASUS's
+# firmware reports "AC adapter online, battery charging" as soon as ANY USB-C
+# device is attached, e.g. an iPhone the laptop is powering, while the battery
+# is actually draining. (Seen 2026-11-24.)
+# The truth is the USB-C power role: power flows IN only on a port that has
+# something attached (a partner) and where the laptop is the sink.
+#   on-ac -v   also print why
+v=0; [ "${1:-}" = -v ] && v=1
+say() { ((v)) && echo "$*"; }
+
+for port in /sys/class/typec/port[0-9]*; do
+    [[ $port == *-* ]] && continue                      # skip portN-partner / -cable
+    [ -d "$port-partner" ] || continue
+    if grep -q '\[sink\]' "$port/power_role" 2>/dev/null; then
+        say "${port##*/}: charger attached (laptop is sink)"; exit 0
+    fi
+    say "${port##*/}: device attached, laptop is powering it"
+done
+for psy in /sys/class/power_supply/ucsi-source-psy-*; do
+    [ "$(cat "$psy/online" 2>/dev/null)" = 1 ] && { say "${psy##*/}: online"; exit 0; }
+done
+if compgen -G '/sys/class/typec/port[0-9]' >/dev/null; then
+    say "no USB-C power input: battery"; exit 1      # USB-C-only charging: that's conclusive
+fi
+# Machines without UCSI: fall back to the ACPI adapter.
+[ "$(cat /sys/class/power_supply/AC0/online 2>/dev/null)" = 1 ] && { say "AC0 online"; exit 0; }
+say "battery"; exit 1

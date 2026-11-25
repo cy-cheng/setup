@@ -1,0 +1,33 @@
+[General]
+Version=202
+ViewPropsTimestamp=2026,11,23,17,42,8.237
+GlobalViewProps=true
+ShowFullPath=true
+BrowseThroughArchives=true
+RememberOpenedTabs=false
+ShowZoomSlider=false
+ConfirmClosingMultipleTabs=false
+
+[KFileDialog Settings]
+Places Icons Auto-resize=false
+Places Icons Static Size=22
+
+[MainWindow]
+MenuBar=Disabled
+
+[IconsMode]
+IconSize=48
+PreviewSize=64
+TextWidthIndex=1
+
+[DetailsMode]
+IconSize=22
+PreviewSize=22
+
+[CompactMode]
+IconSize=22
+PreviewSize=22
+
+[PreviewSettings]
+Plugins=appimagethumbnail,audiothumbnail,comicbookthumbnail,djvuthumbnail,ebookthumbnail,exrthumbnail,directorythumbnail,imagethumbnail,jpegthumbnail,kraorathumbnail,windowsexethumbnail,windowsimagethumbnail,opendocumentthumbnail,gsthumbnail,svgthumbnail,ffmpegthumbs
+

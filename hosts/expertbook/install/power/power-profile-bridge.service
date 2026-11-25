@@ -1,0 +1,14 @@
+[Unit]
+Description=Map power profiles onto ASUS + SoC platform profiles
+After=power-profiles-daemon.service
+Requires=power-profiles-daemon.service
+
+[Service]
+ExecStart=/usr/local/libexec/power-profile-bridge
+Restart=on-failure
+RestartSec=2
+
+[Install]
+# graphical, not multi-user: ppd is ordered after multi-user.target, so
+# WantedBy=multi-user.target made a cycle and systemd dropped this unit at boot.
+WantedBy=graphical.target

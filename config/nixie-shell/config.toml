@@ -1,0 +1,28 @@
+monitor = 0
+height = 42
+
+[divergence]
+enabled = true
+monitors = "all"
+roll_fps = 20
+
+[desktop]
+enabled = true
+monitor = 0
+calendar_refresh_minutes = 15
+
+[commands]
+network = "/home/brine/.config/nixie-shell/bin/open-network-menu"
+network_advanced = "nm-connection-editor"
+bluetooth = "/usr/bin/blueberry"
+audio_mixer = "pavucontrol"
+
+[tray]
+blacklist = ["networkmanager", "nm-applet", "nm_applet", "fcitx", "input method"]
+pinned_first = ["discord"]
+
+[refresh]
+metrics_seconds = 3
+llm_seconds = 60
+reconcile_seconds = 300
+event_coalesce_ms = 75

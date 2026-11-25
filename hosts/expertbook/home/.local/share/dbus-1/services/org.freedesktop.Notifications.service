@@ -1,0 +1,5 @@
+# D-Bus activation for notifications: they are handled by the Nixie
+# Quickshell shell, so start that instead if nothing owns the name yet.
+[D-BUS Service]
+Name=org.freedesktop.Notifications
+Exec=/usr/bin/qs -d -n

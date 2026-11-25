@@ -1,0 +1,10 @@
+#!/bin/sh
+# scratch <name> <class-regex> <command...>
+# Show/hide the named scratchpad (special:<name>). If no window of that class exists,
+# start the app there first. A window rule in hyprland.lua keeps the app in it.
+[ $# -ge 3 ] || { echo "usage: scratch <name> <class-regex> <command...>" >&2; exit 2; }
+name=$1; class=$2; shift 2
+if ! hyprctl clients -j | jq -e --arg c "$class" 'any(.[]; .class | test($c; "i"))' >/dev/null; then
+    hyprctl dispatch "hl.dsp.exec_cmd(\"[workspace special:$name silent] $*\")" >/dev/null
+fi
+hyprctl dispatch "hl.dsp.workspace.toggle_special(\"$name\")" >/dev/null

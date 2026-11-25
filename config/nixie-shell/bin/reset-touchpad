@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -u
+
+# The recovery runs as a root-owned systemd unit and reports its own result as a
+# notification. Polkit lets the active session start it without a password.
+if ! systemctl start --no-block nixie-touchpad-recover@manual.service; then
+    notify-send -u critical "Touchpad recovery unavailable" "Run the setup installer to add the system units."
+    exit 1
+fi

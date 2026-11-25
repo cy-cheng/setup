@@ -1,0 +1,10 @@
+// Let the active local session start the fixed, root-owned touchpad recovery
+// (Super+Shift+T) without a password. No other systemd unit is affected.
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "nixie-touchpad-recover@manual.service" &&
+        action.lookup("verb") == "start" &&
+        subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

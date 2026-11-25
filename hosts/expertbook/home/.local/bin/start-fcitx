@@ -1,0 +1,10 @@
+#!/bin/bash
+# Fcitx5 with the Nixie candidate window (7-item row, Down = 5x5 grid, A-Y select,
+# Ctrl+Enter commits the typed 注音). Add-ons are built from
+# ~/setup/config/nixie-shell/backend into ~/.local/lib/fcitx5.
+export FCITX_ADDON_DIRS="$HOME/.local/lib/fcitx5:/usr/lib/fcitx5"
+if [ -f "$HOME/.local/lib/fcitx5/nixieui.so" ]; then
+    exec fcitx5 -d --replace --enable=nixiestatus,nixieui --ui=nixieui
+else
+    exec fcitx5 -d --replace   # fall back to the standard candidate window
+fi

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Show or set the battery charge limit until the next reboot.
+#   charge-limit        show current limit
+#   charge-limit 100    charge fully (e.g. before travelling)
+#   charge-limit 80     back to the usual limit (also restored at boot)
+f=/sys/class/power_supply/BAT0/charge_control_end_threshold
+if [ -z "${1:-}" ]; then echo "Charge limit: $(cat $f)%"; exit 0; fi
+[[ $1 =~ ^[0-9]+$ ]] && (( $1 >= 50 && $1 <= 100 )) || { echo "usage: charge-limit [50-100]" >&2; exit 2; }
+echo "$1" | sudo tee "$f" >/dev/null && echo "Charge limit: $(cat $f)%"

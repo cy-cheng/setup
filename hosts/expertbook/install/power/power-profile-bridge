@@ -1,0 +1,32 @@
+#!/bin/bash
+# Map power-profiles-daemon's profile onto BOTH firmware sliders on the
+# ExpertBook B9406CAA. The kernel only exposes the modes the two share
+# (balanced/performance), so "power-saver" alone never reached the
+# ASUS "quiet" mode or the SoC "low-power" mode. This fills that gap.
+set -u
+
+apply() {
+    local asus soc p v
+    case "$1" in
+        power-saver) asus=quiet;       soc=low-power ;;
+        performance) asus=performance; soc=performance ;;
+        *)           asus=balanced;    soc=balanced ;;
+    esac
+    for p in /sys/class/platform-profile/*; do
+        case "$(cat "$p/name")" in
+            asus-wmi)           v=$asus ;;
+            "SoC Power Slider") v=$soc ;;
+            *) continue ;;
+        esac
+        grep -qw -- "$v" "$p/choices" && echo "$v" > "$p/profile"
+    done
+}
+
+apply "$(powerprofilesctl get 2>/dev/null || echo balanced)"
+
+gdbus monitor --system --dest net.hadess.PowerProfiles --object-path /net/hadess/PowerProfiles |
+while read -r line; do
+    prof=$(sed -nE "s/.*'ActiveProfile': <'([a-z-]+)'>.*/\1/p" <<<"$line")
+    # Let power-profiles-daemon write its own value first, then refine it.
+    [ -n "$prof" ] && { sleep 0.3; apply "$prof"; }
+done

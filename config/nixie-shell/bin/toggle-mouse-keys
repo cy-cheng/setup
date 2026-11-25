@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -u
+
+# Fn+F6 (XF86TouchpadToggle) swaps the built-in keyboard's input-remapper preset
+# between "default" and "mouse-keys", which drives the pointer from the keyboard.
+# Pass "off" to leave mouse keys if they are on; the lock screen does this.
+device="AT Translated Set 2 keyboard"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+state="$runtime_dir/nixie-mouse-keys"
+tag="string:x-dunst-stack-tag:nixie-mouse-keys"
+
+exec 9>"$state.lock"
+flock 9
+
+mode="${1:-toggle}"
+if [[ $mode == toggle ]]; then
+    [[ -e $state ]] && mode=off || mode=on
+elif [[ $mode == off && ! -e $state ]]; then
+    exit 0
+fi
+
+# input-remapper-control scans /dev/input itself, which needs the input group,
+# so ask the root service directly, the same way its autoload command does.
+use_preset() {
+    local call=(gdbus call --system --dest inputremapper.Control
+        --object-path /inputremapper/Control --method)
+    "${call[@]}" inputremapper.Control.set_config_dir \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/input-remapper-2" >/dev/null &&
+        [[ $("${call[@]}" inputremapper.Control.start_injecting "$device" "$1") == "(true,)" ]]
+}
+
+if [[ $mode == on ]]; then
+    if ! use_preset mouse-keys; then
+        notify-send -u critical -h "$tag" "Mouse keys unavailable" "input-remapper could not load the mouse-keys preset."
+        exit 1
+    fi
+    : >"$state"
+    notify-send -t 0 -h "$tag" "Mouse keys on" \
+        "H J K L or arrows move · F or Space click (hold to drag)
+D right click · S middle click · Y U I O scroll
+Fn+F6 to type again"
+else
+    rm -f -- "$state"
+    use_preset default
+    notify-send -u low -t 1500 -h "$tag" "Mouse keys off"
+fi

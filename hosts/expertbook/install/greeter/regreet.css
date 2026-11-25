@@ -1,0 +1,11 @@
+/* Nixie amber accent for ReGreet. Installed to /etc/greetd/regreet.css */
+button.suggested-action {
+    background: #c97824;
+    color: #070605;
+}
+button.suggested-action:hover {
+    background: #ffac32;
+}
+entry:focus-within {
+    outline: 2px solid #ffac32;
+}

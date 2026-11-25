@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+state="$runtime_dir/nixie-idle-inhibited"
+if [[ -e "$state" ]]; then
+    rm -f -- "$state"
+    pkill -KILL -x hypridle 2>/dev/null || true
+    setsid --fork hypridle </dev/null >>"$runtime_dir/nixie-hypridle.log" 2>&1
+else
+    : >"$state"
+    pkill -STOP -x hypridle 2>/dev/null || true
+fi

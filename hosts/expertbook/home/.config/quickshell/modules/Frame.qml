@@ -1,0 +1,55 @@
+import QtQuick
+import QtQuick.Shapes
+import Quickshell
+import Quickshell.Wayland
+import Quickshell.Hyprland
+import qs.services
+
+// The screen frame (Caelestia-style): one continuous border around the screen.
+// Top edge = bar, thin left/right/bottom edges (the dock slides in on the right), rounded
+// inner corners. Only the frame strips take input; the inside clicks through.
+PanelWindow {
+    id: frame
+    required property var modelData
+    screen: modelData
+
+    anchors { top: true; bottom: true; left: true; right: true }
+    exclusionMode: ExclusionMode.Ignore      // Reserve.qml holds the space instead
+    color: "transparent"
+    WlrLayershell.namespace: "nixie-frame"
+    WlrLayershell.layer: WlrLayer.Top
+
+    readonly property real innerX: Theme.edge
+    readonly property real innerY: Theme.barH
+    readonly property real innerW: width - Theme.edge - Theme.railW
+    readonly property real innerH: height - Theme.barH - Theme.edge
+
+    // Frame = full rectangle minus a rounded inner rectangle (odd-even fill).
+    Shape {
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            fillColor: Theme.frame
+            strokeColor: "transparent"
+            fillRule: ShapePath.OddEvenFill
+            PathRectangle { x: 0; y: 0; width: frame.width; height: frame.height }
+            PathRectangle {
+                x: frame.innerX; y: frame.innerY
+                width: frame.innerW; height: frame.innerH
+                radius: Theme.frameRadius
+            }
+        }
+    }
+
+    BarContent {
+        id: top
+        x: 0; y: 0
+        width: frame.width; height: Theme.barH
+        monitor: Hyprland.monitorFor(frame.screen)
+        innerLeft: frame.innerX + 6
+        innerRight: frame.innerX + frame.innerW - 6
+    }
+
+    // Input only on the top strip.
+    mask: Region { item: top }
+}

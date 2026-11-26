@@ -1,0 +1,6 @@
+[Unit]
+Description=Switch to the preferred Wi-Fi (EAI_lab) when it's in range
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/wifi-prefer

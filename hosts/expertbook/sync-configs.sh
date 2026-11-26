@@ -49,6 +49,9 @@ FILES=(
     .local/bin/power-mode
     .local/bin/agent-screen
     .local/bin/wifi-connect
+    .local/bin/wifi-prefer
+    .config/systemd/user/wifi-prefer.service
+    .config/systemd/user/wifi-prefer.timer
     .local/bin/on-ac
     .local/bin/start-fcitx
     .local/bin/nixie-focus

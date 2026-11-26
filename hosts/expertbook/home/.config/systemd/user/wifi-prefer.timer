@@ -1,0 +1,9 @@
+[Unit]
+Description=Check for the preferred Wi-Fi every 2 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

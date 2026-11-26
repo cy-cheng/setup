@@ -1,0 +1,18 @@
+#!/bin/bash
+# Switch to the preferred Wi-Fi when it's in range, even while connected elsewhere.
+# NetworkManager's autoconnect priority (EAI_lab = 100) only applies when it picks a
+# network itself (boot, resume, after a drop); it never leaves a working connection.
+# Run every 2 min by wifi-prefer.timer (systemd --user).
+set -u
+pref=EAI_lab
+min_signal=40          # out of 100: don't jump to a barely-reachable network
+
+cur=$(nmcli -t -f GENERAL.CONNECTION device show wlo1 2>/dev/null | cut -d: -f2-)
+[ -n "$cur" ] || exit 0              # Wi-Fi disconnected: autoconnect (priority) handles it
+[ "$cur" = "$pref" ] && exit 0
+# Cached scan results only (no rescan: that briefly disturbs the current link).
+sig=$(nmcli -t -f SSID,SIGNAL device wifi list ifname wlo1 --rescan no 2>/dev/null |
+      awk -F: -v s="$pref" '$1 == s && $2 > m { m = $2 } END { print m + 0 }')
+[ "$sig" -ge "$min_signal" ] || exit 0
+logger -t wifi-prefer "on '$cur', $pref in range ($sig%): switching"
+nmcli --wait 30 connection up id "$pref" >/dev/null 2>&1 || logger -t wifi-prefer "switch to $pref failed"

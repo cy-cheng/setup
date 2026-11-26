@@ -1,6 +1,7 @@
 #!/bin/bash
 # Switch how external screens (monitors, projectors) are used, like Win+P.
-# Usage: display-mode [menu|extend|mirror|external|internal]
+# Usage: display-mode [next|extend|mirror|external|internal]
+#   next (Super+P, the F8 display key): Extend -> Mirror -> External only -> Laptop only -> Extend
 set -euo pipefail
 
 internal=eDP-1
@@ -14,18 +15,28 @@ for m in json.load(sys.stdin):
 rule() { hyprctl eval "hl.monitor({ $1 })" >/dev/null; }
 internal_on() { rule "output = \"$internal\", mode = \"preferred\", position = \"0x0\", scale = 2"; }
 
-mode="${1:-menu}"
-if [ "$mode" = menu ]; then
+mode="${1:-next}"
+[ "$mode" = menu ] && mode=next      # old name
+if [ "$mode" = next ]; then
     if [ ${#externals[@]} -eq 0 ]; then
         notify-send -a Display "No external screen" "Plug in a monitor or projector first."
         exit 0
     fi
-    mode=$(printf '%s\n' "Extend" "Mirror" "External only" "Laptop only" |
-        rofi -dmenu -i -p "Display (${externals[*]})" | tr 'A-Z' 'a-z')
-    case "$mode" in
-        "external only") mode=external ;;
-        "laptop only") mode=internal ;;
-        "") exit 0 ;;
+    # Work out the current mode from what Hyprland shows, then take the next one.
+    cur=$(hyprctl monitors -j | python3 -I -c '
+import json, sys
+ms = json.load(sys.stdin)
+names = [m["name"] for m in ms]
+ext = [m for m in ms if m["name"] != "eDP-1" and not m["name"].startswith(("AGENT", "HEADLESS"))]
+if "eDP-1" not in names: print("external")
+elif not ext: print("internal")
+elif any(str(m.get("mirrorOf", "none")) not in ("none", "") for m in ext): print("mirror")
+else: print("extend")')
+    case "$cur" in
+        extend) mode=mirror ;;
+        mirror) mode=external ;;
+        external) mode=internal ;;
+        *) mode=extend ;;
     esac
 fi
 
@@ -62,4 +73,6 @@ case "$mode" in
     *) echo "usage: display-mode [menu|extend|mirror|external|internal]" >&2; exit 2 ;;
 esac
 
-notify-send -a Display "Display: $mode" "${externals[*]:-laptop only}"
+sleep 1; "$HOME/.local/bin/ws-layout"     # workspaces 6-10 follow the extended screen
+label=$(case "$mode" in extend) echo Extend;; mirror) echo Mirror;; external) echo "External only";; internal) echo "Laptop only";; esac)
+notify-send -a Display -h string:x-canonical-private-synchronous:display-mode "Display: $label" "Super+P again for the next mode: Extend, Mirror, External only, Laptop only"

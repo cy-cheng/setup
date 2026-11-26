@@ -1,0 +1,35 @@
+#!/bin/bash
+# Which screen owns which workspace numbers (Super+1..0):
+#   1-5   always the laptop panel
+#   6-10  the external screen while one is extended (not mirrored); otherwise the panel
+# Run by hyprland.lua at start-up, on config reload and when a monitor is added or
+# removed, and by display-mode after switching modes.
+set -u
+internal=eDP-1
+mons=$(hyprctl -j monitors)
+ext=$(jq -r --arg i "$internal" '[.[] | select(.name != $i and (.name | test("^(AGENT|HEADLESS)") | not)
+                                  and (.mirrorOf == "none" or .mirrorOf == null))][0].name // empty' <<<"$mons")
+target=${ext:-$internal}
+jq -e --arg t "$target" 'any(.[]; .name == $t)' <<<"$mons" >/dev/null || target=$(jq -r '.[0].name' <<<"$mons")
+
+for i in 6 7 8 9 10; do
+    hyprctl eval "hl.workspace_rule({ workspace = \"$i\", monitor = \"$target\" })" >/dev/null
+    # Already open on the other screen: move it over. The workspace must be a number:
+    # a string ("6") silently moved the ACTIVE workspace instead.
+    on=$(hyprctl -j workspaces | jq -r --argjson i "$i" '.[] | select(.id == $i) | .monitor')
+    [ -n "$on" ] && [ "$on" != "$target" ] &&
+        hyprctl dispatch "hl.dsp.workspace.move({ workspace = $i, monitor = \"$target\" })" >/dev/null
+done
+
+# A freshly plugged-in screen shows whatever number was free (e.g. 11): give it 6,
+# then put the focus back where it was.
+if [ -n "$ext" ]; then
+    shown=$(jq -r --arg e "$ext" '.[] | select(.name == $e) | .activeWorkspace.id' <<<"$mons")
+    if [ "$shown" -lt 6 ] || [ "$shown" -gt 10 ]; then
+        back=$(hyprctl -j activeworkspace | jq -r '.id')
+        hyprctl dispatch 'hl.dsp.focus({ workspace = "6" })' >/dev/null
+        [ "$back" -ge 6 ] && [ "$back" -le 10 ] ||
+            hyprctl dispatch "hl.dsp.focus({ workspace = \"$back\" })" >/dev/null
+    fi
+fi
+exit 0

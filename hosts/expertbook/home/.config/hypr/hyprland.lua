@@ -31,7 +31,7 @@ hl.monitor({
 })
 
 -- Anything plugged in (monitor, projector): extend to the right by default.
--- Super+P / the F8 display key switch to mirror, external-only or laptop-only.
+-- Super+P / the F8 display key cycle Extend -> Mirror -> External only -> Laptop only.
 hl.monitor({
     output   = "",
     mode     = "preferred",
@@ -323,8 +323,8 @@ hl.bind(mainMod .. " + SHIFT + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + SHIFT + P", hl.dsp.window.pseudo())
 -- Displays: extend / mirror / external only / laptop only (like Win+P)
-hl.bind(mainMod .. " + P", hl.dsp.exec_cmd("~/.local/bin/display-mode menu"))
-hl.bind("XF86Display", hl.dsp.exec_cmd("~/.local/bin/display-mode menu"))
+hl.bind(mainMod .. " + P", hl.dsp.exec_cmd("~/.local/bin/display-mode next"))
+hl.bind("XF86Display", hl.dsp.exec_cmd("~/.local/bin/display-mode next"))
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))    -- dwindle only
 
 -- Move focus with mainMod + arrow keys
@@ -410,12 +410,18 @@ hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = tr
 
 -- Example window rules that are useful
 
--- Workspaces 1-10 always live on the laptop panel. The "agent" workspace belongs
--- to an invisible headless screen (~/.local/bin/agent-screen) that Claude uses to
--- open and screenshot windows without touching your screen or focus.
+-- Workspaces 1-5 live on the laptop panel; 6-10 on an extended external screen when
+-- one is plugged in, else on the panel too (~/.local/bin/ws-layout moves them, run
+-- now and whenever a screen comes or goes). The "agent" workspace belongs to an
+-- invisible headless screen (~/.local/bin/agent-screen) that Claude uses to open and
+-- screenshot windows without touching your screen or focus.
 for i = 1, 10 do
     hl.workspace_rule({ workspace = tostring(i), monitor = "eDP-1" })
 end
+hl.on("hyprland.start",  function() hl.exec_cmd("~/.local/bin/ws-layout") end)
+hl.on("config.reloaded", function() hl.exec_cmd("~/.local/bin/ws-layout") end)
+hl.on("monitor.added",   function() hl.exec_cmd("sleep 1; ~/.local/bin/ws-layout") end)
+hl.on("monitor.removed", function() hl.exec_cmd("sleep 1; ~/.local/bin/ws-layout") end)
 hl.workspace_rule({ workspace = "name:agent", monitor = "AGENT", default = true })
 
 -- Named scratchpads: apps that live in their own special workspace.

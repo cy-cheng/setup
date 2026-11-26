@@ -43,6 +43,7 @@ FILES=(
     .local/bin/brightness
     .local/bin/charge-limit
     .local/bin/display-mode
+    .local/bin/ws-layout
     .local/bin/power-button
     .local/bin/scratch
     .local/bin/shot

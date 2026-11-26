@@ -253,6 +253,7 @@ hl.config({
 
 hl.config({
     misc = {
+        allow_session_lock_restore = true, -- a new hyprlock may take over a locked session (scripts/relock.sh, after resume)
         force_default_wallpaper = -1,    -- Set to 0 or 1 to disable the anime mascot wallpapers
         disable_hyprland_logo   = false, -- If true disables the random hyprland logo / anime girl background. :(
     },

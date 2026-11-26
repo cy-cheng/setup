@@ -14,6 +14,7 @@ FILES=(
     .config/hypr/hyprlock.conf
     .config/hypr/application-style.conf
     .config/hypr/scripts/lock-session.sh
+    .config/hypr/scripts/relock.sh
     .config/fcitx5/config
     .config/fcitx5/profile
     .config/fcitx5/conf/classicui.conf

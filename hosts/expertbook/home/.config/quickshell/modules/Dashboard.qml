@@ -38,6 +38,14 @@ PanelWindow {
     HyprlandFocusGrab { windows: [dash]; active: dash.open; onCleared: Panels.close() }
 
     // ── Data ──
+    // Display mode (display-mode current): extend|mirror|external|internal|none
+    property string displayMode: ""
+    Process {
+        id: displayProbe
+        command: [Quickshell.env("HOME") + "/.local/bin/display-mode", "current"]
+        stdout: StdioCollector { onStreamFinished: dash.displayMode = text.trim() }
+    }
+    Timer { id: displayReread; interval: 2500; onTriggered: displayProbe.running = true }
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var source: Pipewire.defaultAudioSource
     PwObjectTracker { objects: [dash.sink, dash.source] }
@@ -59,7 +67,7 @@ PanelWindow {
         path: "/proc/uptime"
         onLoaded: dash.uptime = parseFloat(text().split(" ")[0]) || 0
     }
-    onOpenChanged: if (open) { uptimeFile.reload(); card.forceActiveFocus(); }
+    onOpenChanged: if (open) { uptimeFile.reload(); card.forceActiveFocus(); displayProbe.running = true; }
 
     function dur(s) {
         s = Math.max(0, Math.round(s));
@@ -343,6 +351,53 @@ PanelWindow {
                         detail: ({ "power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance" })[Sys.powerProfile] ?? ""
                         on: Sys.powerProfile !== "balanced"
                         onToggled: Sys.cycleProfile()
+                    }
+                }
+
+                // ── Display: how an external screen is used (only while one is connected) ──
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: dash.displayMode !== "" && dash.displayMode !== "none"
+                    spacing: 6
+                    Label { text: "Display"; color: Theme.muted; font.pixelSize: Theme.textSm }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Repeater {
+                            model: [
+                                { mode: "extend",   label: "Extend",        icon: "desktop_windows" },
+                                { mode: "mirror",   label: "Mirror",        icon: "screen_share" },
+                                { mode: "external", label: "External only", icon: "monitor" },
+                                { mode: "internal", label: "Laptop only",   icon: "laptop" },
+                            ]
+                            delegate: Rectangle {
+                                required property var modelData
+                                readonly property bool on: dash.displayMode === modelData.mode
+                                readonly property bool hovered: dispMouse.containsMouse
+                                Layout.fillWidth: true
+                                implicitHeight: 56
+                                radius: Theme.radius
+                                color: on ? Qt.rgba(1, 0.675, 0.196, hovered ? 0.24 : 0.16) : Qt.rgba(1, 1, 1, hovered ? 0.10 : 0.04)
+                                border.color: on ? Qt.rgba(1, 0.675, 0.196, hovered ? 0.6 : 0.45) : hovered ? Qt.rgba(1, 1, 1, 0.32) : Theme.line
+                                Behavior on color { ColorAnimation { duration: 120 } }
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Icon { Layout.alignment: Qt.AlignHCenter; size: 18; text: modelData.icon; color: parent.parent.on ? Theme.amber : Theme.muted }
+                                    Label { Layout.alignment: Qt.AlignHCenter; text: modelData.label; font.pixelSize: 9; color: Theme.fg }
+                                }
+                                MouseArea {
+                                    id: dispMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        dash.displayMode = modelData.mode;   // show it at once; re-read when done
+                                        Quickshell.execDetached(["sh", "-c", Quickshell.env("HOME") + "/.local/bin/display-mode " + modelData.mode]);
+                                        displayReread.restart();
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

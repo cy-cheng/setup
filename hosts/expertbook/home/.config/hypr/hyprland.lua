@@ -31,7 +31,8 @@ hl.monitor({
 })
 
 -- Anything plugged in (monitor, projector): extend to the right by default.
--- Super+P / the F8 display key cycle Extend -> Mirror -> External only -> Laptop only.
+-- Choose Extend / Mirror / External only / Laptop only in the dashboard (Super+A);
+-- the F8 display key cycles through them.
 hl.monitor({
     output   = "",
     mode     = "preferred",
@@ -324,7 +325,6 @@ hl.bind(mainMod .. " + SHIFT + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + SHIFT + P", hl.dsp.window.pseudo())
 -- Displays: extend / mirror / external only / laptop only (like Win+P)
-hl.bind(mainMod .. " + P", hl.dsp.exec_cmd("~/.local/bin/display-mode next"))
 hl.bind("XF86Display", hl.dsp.exec_cmd("~/.local/bin/display-mode next"))
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))    -- dwindle only
 

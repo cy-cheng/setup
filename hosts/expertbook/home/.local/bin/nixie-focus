@@ -25,6 +25,14 @@ def ppid(pid):
 
 
 def focus(c):
+    # A scratchpad (special workspace, e.g. Discord on Super+D) is hidden until shown:
+    # show it first, unless it's already open on a monitor.
+    ws = c["workspace"]["name"]
+    if ws.startswith("special:"):
+        mons = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True).stdout or "[]")
+        if not any(m.get("specialWorkspace", {}).get("name") == ws for m in mons):
+            name = ws.split(":", 1)[1]
+            subprocess.run(["hyprctl", "dispatch", f'hl.dsp.workspace.toggle_special("{name}")'], capture_output=True)
     subprocess.run(["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{c["address"]}" }})'],
                    capture_output=True)
     print(f'focused {c["class"]} on workspace {c["workspace"]["name"]}')

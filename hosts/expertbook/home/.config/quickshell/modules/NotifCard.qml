@@ -97,7 +97,7 @@ Rectangle {
                         Label { id: act; anchors.centerIn: parent; text: modelData.text
                                 color: actMouse.containsMouse ? Theme.base : Theme.fg; font.pixelSize: Theme.textSm }
                         MouseArea { id: actMouse; anchors.fill: parent; hoverEnabled: true
-                                    onClicked: { modelData.invoke(); Notifs.removePopup(card.rec); } }
+                                    onClicked: Notifs.runAction(card.rec, modelData) }
                     }
                 }
             }

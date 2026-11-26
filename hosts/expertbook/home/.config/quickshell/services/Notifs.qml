@@ -113,12 +113,16 @@ Singleton {
     // Click: run the app's default action, then focus the window that sent it.
     function activate(rec) {
         const n = rec.notif;
-        if (n) {
-            const def = n.actions.find(a => a.identifier === "default");
-            if (def) def.invoke();
-        }
+        const def = n ? n.actions.find(a => a.identifier === "default") : null;
+        runAction(rec, def);
+    }
+    // An action button ("Open", "Reply"...), or the default action: run it, then go to
+    // the source window (on whichever workspace it is, scratchpads included).
+    function runAction(rec, action) {
+        if (action) action.invoke();
         const pid = rec.hints["sender-pid"];
-        Quickshell.execDetached(["nixie-focus",
+        // Absolute path: qs is started by Hyprland, whose PATH has no ~/.local/bin.
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/nixie-focus",
             "--pid", pid ? String(pid) : "",
             "--desktop", rec.desktopEntry, "--app", rec.appName]);
         markSeen(rec.key);

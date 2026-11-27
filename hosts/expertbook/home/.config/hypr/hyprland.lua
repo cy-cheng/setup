@@ -499,6 +499,19 @@ hl.layer_rule({
 -- })
 -- overlayLayerRule:set_enabled(false)
 
+-- KDE copy/move progress (KIO's job window; without Plasma there's no notification
+-- for it). It popped up over the "File Already Exists" prompt and took the focus:
+-- keep it out of the way in the bottom-right corner and don't focus it.
+-- Titles from KJobWidgets: "Progress Dialog", then "40% of 1 file" / "40% of 3.2 GB".
+hl.window_rule({
+    name  = "kio-progress-corner",
+    match = { class = "^org\\.kde\\.", title = "^(Progress Dialog|[0-9]+% of .*)$" },
+
+    float            = true,
+    no_initial_focus = true,
+    move             = "monitor_w-window_w-24 monitor_h-window_h-24",
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
     name  = "move-hyprland-run",

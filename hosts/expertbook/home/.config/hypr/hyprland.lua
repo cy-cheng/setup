@@ -290,6 +290,11 @@ hl.config({
 
         touchpad = {
             natural_scroll = true, -- content follows your fingers (as on the arch machine)
+            -- No tap-to-click: press the pad to click. Stray palm/thumb taps while typing
+            -- kept clicking and moving focus (2026-11-27); libinput's typing guard is only
+            -- 0.2-0.5 s and pressure palm detection is unusable on this PixArt pad.
+            tap_to_click = false,
+            clickfinger_behavior = true, -- two-finger press = right click, three = middle (anywhere on the pad)
         },
     },
 })

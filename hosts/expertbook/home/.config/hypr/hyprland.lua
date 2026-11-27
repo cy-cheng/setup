@@ -378,6 +378,25 @@ hl.bind("code:66", hl.dsp.exec_cmd("fcitx5-remote -t"))
 hl.bind("XF86PowerOff", hl.dsp.exec_cmd("~/.local/bin/power-button"), { locked = true })
 
 -- Dock: Super+D slides it in/out (or rest the pointer on the right edge ~2 s)
+-- Super+H: the hidden workspace (music, things to keep running out of sight): show / hide it.
+-- Super+Shift+H: send the focused window there (it disappears), or, when it's
+-- already in there, bring it back to the workspace underneath.
+hl.bind(mainMod .. " + H", hl.dsp.workspace.toggle_special("hidden"))
+hl.bind(mainMod .. " + SHIFT + H", function ()
+    local w = hl.get_active_window()
+    if w == nil then return end
+    if w.workspace ~= nil and w.workspace.name == "special:hidden" then
+        local ws = hl.get_active_workspace()            -- the regular workspace under it
+        hl.dispatch(hl.dsp.window.move({ workspace = ws.id }))
+        local sp = hl.get_active_special_workspace()
+        if sp ~= nil and sp.name == "special:hidden" then hl.dispatch(hl.dsp.workspace.toggle_special("hidden")) end
+    else
+        hl.dispatch(hl.dsp.window.move({ workspace = "special:hidden" }))
+        local sp = hl.get_active_special_workspace()     -- moving shows it; hide it again
+        if sp ~= nil and sp.name == "special:hidden" then hl.dispatch(hl.dsp.workspace.toggle_special("hidden")) end
+    end
+end)
+
 -- Super+D: Discord scratchpad (starts Discord if needed); Super+Shift+D pins the dock
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("~/.local/bin/scratch discord '^discord$' discord"))
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("qs ipc call dock toggle"))

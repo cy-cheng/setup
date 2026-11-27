@@ -1,0 +1,6 @@
+# keyd re-emits the laptop keyboard as "keyd virtual keyboard". Tell libinput it's
+# the internal keyboard, or touchpad disable-while-typing (palm rejection) stops working.
+[keyd virtual keyboard]
+MatchUdevType=keyboard
+MatchName=keyd virtual keyboard
+AttrKeyboardIntegration=internal

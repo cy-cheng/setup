@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""tap-guard: pause touchpad tap-to-click while you type.
+
+libinput only ignores touches that *start* within 0.2-0.5 s of a keypress, and its
+side palm zone is a fixed 8 % of the pad. On this wide PixArt pad, palms and thumbs
+land just inside that zone (measured 2026-11-28: palms at x 200-520 / 3100-3500 of
+0-3901; real taps at 1350-2250) and pressure can't tell them apart (both ~0-40).
+
+So: after any non-modifier key, tap-to-click is switched off for the touchpad for
+GUARD seconds after the last key, then back on. Moving the pointer and pressing the
+pad keep working. Runs as root (reading the keyboard needs it); it looks only at
+whether a key went down, never at which letter, and stores nothing.
+
+Settings (environment, see tap-guard.service): TAP_GUARD_SECONDS (default 1.0).
+"""
+import glob, os, re, select, struct, subprocess, sys, time
+
+GUARD = float(os.environ.get("TAP_GUARD_SECONDS", "1.0"))
+TOUCHPAD = "ascp1d80:00-093a:4f05-touchpad"          # Hyprland's device name
+KEYBOARDS = ["keyd virtual keyboard", "AT Translated Set 2 keyboard"]   # first found wins
+# Modifiers don't start the guard: Ctrl/Shift/Alt/Super + tap must keep working.
+MODIFIERS = {29, 97, 42, 54, 56, 100, 125, 126, 58}    # ctrl L/R, shift L/R, alt L/R, meta L/R, capslock
+EV_KEY = 1
+EVENT = struct.Struct("llHHi")                         # struct input_event (64-bit)
+
+
+def find_keyboard():
+    """Path of the first keyboard in KEYBOARDS that exists (from /proc/bus/input/devices)."""
+    found = {}
+    for block in open("/proc/bus/input/devices").read().split("\n\n"):
+        name = re.search(r'N: Name="(.*)"', block)
+        ev = re.search(r"H: Handlers=.*?\b(event\d+)\b", block)
+        if name and ev:
+            found.setdefault(name.group(1), "/dev/input/" + ev.group(1))
+    for k in KEYBOARDS:
+        if k in found:
+            return k, found[k]
+    return None, None
+
+
+def set_tap(on):
+    """Switch tap-to-click on the touchpad in every running Hyprland session.
+    hyprctl runs as root straight against the session's socket (no runuser: that
+    logged a PAM session open/close on every switch)."""
+    code = f'hl.device({{ name = "{TOUCHPAD}", tap_to_click = {"true" if on else "false"} }})'
+    for sock in glob.glob("/run/user/*/hypr/*/.socket.sock"):
+        sig_dir = os.path.dirname(sock)
+        env = {"XDG_RUNTIME_DIR": sig_dir.rsplit("/hypr/", 1)[0],
+               "HYPRLAND_INSTANCE_SIGNATURE": os.path.basename(sig_dir),
+               "PATH": "/usr/bin:/bin"}
+        try:
+            subprocess.run(["hyprctl", "eval", code], env=env, timeout=3,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def main():
+    guarded = False
+    last_key = 0.0
+    pauses = 0
+    set_tap(True)                                      # start from a known state
+    while True:
+        name, path = find_keyboard()
+        if not path:
+            time.sleep(3)
+            continue
+        print(f"tap-guard: watching {name} ({path}), guard {GUARD:.2f} s", flush=True)
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        except OSError:
+            time.sleep(3)
+            continue
+        try:
+            while True:
+                timeout = max(0.0, last_key + GUARD - time.monotonic()) if guarded else 5.0
+                r, _, _ = select.select([fd], [], [], timeout)
+                if r:
+                    data = os.read(fd, EVENT.size * 64)
+                    for i in range(0, len(data) - EVENT.size + 1, EVENT.size):
+                        _, _, etype, code, value = EVENT.unpack_from(data, i)
+                        if etype == EV_KEY and value in (1, 2) and code not in MODIFIERS and code < 0x100:
+                            last_key = time.monotonic()
+                            if not guarded:
+                                guarded = True
+                                set_tap(False)
+                                pauses += 1
+                                try:   # just a count, for checking it works
+                                    with open("/run/tap-guard", "w") as f:
+                                        f.write(f"{pauses} pauses since start, guard {GUARD:.2f} s\n")
+                                except OSError:
+                                    pass
+                if guarded and time.monotonic() >= last_key + GUARD:
+                    guarded = False
+                    set_tap(True)
+                # Re-check which keyboard to watch now and then (keyd started/stopped).
+                if not r and not guarded and find_keyboard()[1] != path:
+                    break
+        except OSError:
+            pass                                       # device went away: find it again
+        finally:
+            os.close(fd)
+            if guarded:
+                guarded = False
+                set_tap(True)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        set_tap(True)                                  # never leave tapping off

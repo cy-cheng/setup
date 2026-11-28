@@ -1,0 +1,12 @@
+[Unit]
+Description=Pause touchpad tap-to-click while typing (palm taps)
+After=keyd.service
+
+[Service]
+Environment=TAP_GUARD_SECONDS=1.0
+ExecStart=/usr/local/bin/tap-guard
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
